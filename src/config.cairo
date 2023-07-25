@@ -4,6 +4,7 @@ use traits::{Into, TryInto};
 use result::ResultTrait;
 use integer::{u256_from_felt252};
 use option::OptionTrait;
+use hash::LegacyHash;
 
 const ORDER_STRUCT_STORAGE_SIZE: u8 = 4;
 
@@ -119,5 +120,33 @@ impl StorageAccessFelt252Array of StorageAccess<Array<felt252>> {
             return 1;
         }
         1_u8 + StorageAccess::<felt252>::size_internal(*value[0]) * value.len().try_into().unwrap()
+    }
+}
+
+impl AssetLegacyHash of LegacyHash<Asset> {
+    fn hash(state: felt252, value: Asset) -> felt252 {
+        LegacyHash::<felt252>::hash(state, value.into())
+    }
+}
+
+impl AssetIntoFelt252 of Into<Asset, felt252> {
+    fn into(self: Asset) -> felt252 {
+        match self {
+            Asset::Happens(()) => 0,
+            Asset::Not(()) => 1,
+        }
+    }
+}
+
+impl Felt252TryIntoAsset of TryInto<felt252, Asset> {
+    fn try_into(self: felt252) -> Option<Asset> {
+        if(self == 0) {
+            return Option::Some(Asset::Happens(()));
+        }
+        if(self == 1) {
+            return Option::Some(Asset::Not(()));
+        }
+
+        Option::None(())
     }
 }
