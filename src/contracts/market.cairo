@@ -6,7 +6,7 @@ mod Market {
 
     #[storage]
     struct Storage {
-        balances: LegacyMap<(Asset, ContractAddress), u256>, // TODO: Asset tipi için legacy hash
+        balances: LegacyMap<(Asset, ContractAddress), u256>, 
         supplies: LegacyMap<Asset, u256>,
         allowances: LegacyMap<(ContractAddress, ContractAddress), bool>, // owner -> spender -> bool
         collateral: ContractAddress,

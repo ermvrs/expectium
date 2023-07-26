@@ -8,7 +8,7 @@ use hash::LegacyHash;
 
 const ORDER_STRUCT_STORAGE_SIZE: u8 = 4;
 
-#[derive(Drop, storage_access::StorageAccess)]
+#[derive(Drop)]
 struct Order { // TODO: cancel order için orderid gerekecek.
     // asset: Asset, // Gerek kalmaya bilir zaten mapli
     // side: OrderSide, // Zaten mapli
@@ -16,7 +16,8 @@ struct Order { // TODO: cancel order için orderid gerekecek.
     date: u64,
     // user: ContractAddress, // Ayrı mappingde tut.
     amount: u128, // max length çok yüksek decimals düşük tutabiliriz
-    price: u16
+    price: u16,
+    status: OrderStatus // u8 length yeter
 }
 
 const TWO_POW_8: u256 = 0x100;
@@ -25,30 +26,71 @@ const TWO_POW_32: u256 = 0x100000000;
 const TWO_POW_64: u256 = 0x10000000000000000;
 const TWO_POW_96: u256 = 0x1000000000000000000000000;
 const TWO_POW_224: u256 = 0x100000000000000000000000000000000000000000000000000000000;
+const TWO_POW_240: u256 = 0x1000000000000000000000000000000000000000000000000000000000000;
 
 fn pack_order(order: Order) -> felt252 {
     let mut packed: u256 = order.order_id.into(); // u32
     packed = packed | (u256_from_felt252(order.date.into()) * TWO_POW_32);
     packed = packed | (u256_from_felt252(order.amount.into()) * TWO_POW_96);
     packed = packed | (u256_from_felt252(order.price.into()) * TWO_POW_224);
+    packed = packed | (u256_from_felt252(order.status.into()) * TWO_POW_240); // KONTROL EDİLMELİ PACK DÜZGÜN MÜ.
 
     packed.try_into().unwrap()
-
 }
 
-
-#[derive(Drop, storage_access::StorageAccess)]
-enum OrderState {
-    Initialized: (),
-    PartiallyFilled: (),
-    Filled: (),
-    Cancelled: (), // gerek yok
+fn unpack_order(packed_order: felt252) -> Order {
+    // TODO
+    Order {
+        order_id : 0, 
+        price : 0,
+        amount: 0,
+        date: 0,
+        status: 0.try_into().unwrap()
+    }
 }
 
 #[derive(Copy, Drop, Serde, PartialEq)]
 enum Asset {
     Happens: (),
     Not: (),
+}
+
+#[derive(Copy, Drop, Serde, PartialEq)]
+enum OrderStatus {
+    Initialized: (),
+    PartiallyFilled: (),
+    Filled: (),
+    Cancelled: ()
+}
+
+impl OrderStatusIntoFelt252 of Into<OrderStatus, felt252> {
+    fn into(self: OrderStatus) -> felt252 {
+        match self {
+            OrderStatus::Initialized(()) => 0,
+            OrderStatus::PartiallyFilled(()) => 1,
+            OrderStatus::Filled(()) => 2,
+            OrderStatus::Cancelled(()) => 3,
+        }
+    }
+}
+
+impl Felt252TryIntoOrderStatus of TryInto<felt252, OrderStatus> {
+    fn try_into(self: felt252) -> Option<OrderStatus> {
+        if(self == 0) {
+            return Option::Some(OrderStatus::Initialized(()));
+        }
+        if(self == 1) {
+            return Option::Some(OrderStatus::PartiallyFilled(()));
+        }
+        if(self == 2) {
+            return Option::Some(OrderStatus::Filled(()));
+        }
+        if(self == 3) {
+            return Option::Some(OrderStatus::Cancelled(()));
+        }
+
+        Option::None(())
+    }
 }
 
 impl StorageAccessFelt252Array of StorageAccess<Array<felt252>> {
