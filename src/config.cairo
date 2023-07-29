@@ -8,7 +8,7 @@ use hash::LegacyHash;
 
 const ORDER_STRUCT_STORAGE_SIZE: u8 = 4;
 
-#[derive(Drop)]
+#[derive(Drop, Copy)]
 struct Order { // TODO: cancel order için orderid gerekecek.
     // asset: Asset, // Gerek kalmaya bilir zaten mapli
     // side: OrderSide, // Zaten mapli
@@ -28,6 +28,12 @@ const TWO_POW_96: u256 = 0x1000000000000000000000000;
 const TWO_POW_224: u256 = 0x100000000000000000000000000000000000000000000000000000000;
 const TWO_POW_240: u256 = 0x1000000000000000000000000000000000000000000000000000000000000;
 
+const MASK_8: u256 = 0xFF;
+const MASK_16: u256 = 0xFFFF;
+const MASK_32: u256 = 0xFFFFFFFF;
+const MASK_64: u256 = 0xFFFFFFFFFFFFFFFF;
+const MASK_128: u256 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+
 fn pack_order(order: Order) -> felt252 {
     let mut packed: u256 = order.order_id.into(); // u32
     packed = packed | (u256_from_felt252(order.date.into()) * TWO_POW_32);
@@ -40,14 +46,23 @@ fn pack_order(order: Order) -> felt252 {
 
 fn unpack_order(packed_order: felt252) -> Order {
     // TODO
+    let packed: u256 = packed_order.into();
+
+    let order_id: u32 = (packed & MASK_32).try_into().unwrap();
+    let date: u64 = ((packed / TWO_POW_32) & MASK_64).try_into().unwrap();
+    let amount: u128 = ((packed / TWO_POW_96) & MASK_128).try_into().unwrap();
+    let price: u16 = ((packed / TWO_POW_224) & MASK_16).try_into().unwrap();
+    let status: felt252 = ((packed / TWO_POW_240) & MASK_8).try_into().unwrap();
+
     Order {
-        order_id : 0, 
-        price : 0,
-        amount: 0,
-        date: 0,
-        status: 0.try_into().unwrap()
+        order_id : order_id, 
+        date: date,
+        amount: amount,
+        price: price,
+        status: status.try_into().unwrap()
     }
 }
+
 
 #[derive(Copy, Drop, Serde, PartialEq)]
 enum Asset {
