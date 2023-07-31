@@ -5,6 +5,15 @@ use starknet::{ContractAddress};
 trait IOrderbook<TContractState> {
     fn insert_buy_order(ref self: TContractState, asset: Asset, amount: u256, price: u16) -> u32; // order_id döndürür
     fn insert_sell_order(ref self: TContractState, asset: Asset, amount: u256, price: u16) -> u32;
+    fn cancel_buy_order(ref self: TContractState, asset: Asset, order_id: u32);
+    fn cancel_sell_order(ref self: TContractState, asset: Asset, order_id: u32);
+
+    // views
+    fn get_order(self: @TContractState, asset: Asset, side: u8, order_id: u32) -> felt252; // packed order döndürür. TODO: direk order döndürülebilir.
+    fn get_order_owner(self: @TContractState, order_id: u32) -> ContractAddress;
+
+    // operators
+    fn emergency_stop(ref self: TContractState);
 }
 
 #[starknet::contract]
@@ -30,6 +39,14 @@ mod Orderbook {
 
     #[external(v0)]
     impl Orderbook of IOrderbook<ContractState> {
+        fn get_order(self: @ContractState, asset: Asset, side: u8, order_id: u32) -> felt252 {
+            assert(side < 2_u8, 'side wrong');
+            _find_order(self, asset, side, order_id)
+        }
+
+        fn get_order_owner(self: @ContractState, order_id: u32) -> ContractAddress {
+            self.market_makers.read(order_id)
+        }
         /////
         // asset: Alınacak asset
         // amount: alınacak asset miktarı
@@ -53,8 +70,41 @@ mod Orderbook {
             // usdcleri mevcut emirlerle spend edicez. Bu şekilde alım yaparsak düşük fiyatla alınanlarda fazladan usdc kalabilir. Onları geri gönderelim.
 
             let (amount_left, spent_quote) = _match_incoming_buy_order(ref self, caller, asset, amount_low, price);
+            // Dönen değerler. geriye kalan amount, spent_quote ise harcanana usdc.
+            // Buradan sonra. kalan spent_quote miktarı kadar emir girilmeli.
+            if(spent_quote == total_quote) {
+                return 0_u32;
+            }
+            let order_id = self.order_count.read() + 1; // 0. order id boş bırakılıyor. 0 döner ise order tamamen eşleşti demek.
+            self.order_count.write(order_id + 1); // order id arttır.
 
-            0_u32
+            let rest_amount: u128 = spent_quote.low / price.into();
+
+            let mut order: Order = Order {
+                order_id: order_id, date: time, amount: rest_amount, price: price, status: OrderStatus::Initialized(()) // Eğer amount değiştiyse partially filled yap.
+            };
+
+            let order_packed = pack_order(order);
+            self.market_makers.write(order_id, caller);
+
+            match asset {
+                Asset::Happens(()) => {
+                    let mut current_orders = self.happens.read(0_u8);
+                    current_orders.append(order_packed);
+
+                    let sorted_orders = _sort_orders(true, current_orders);
+                    self.happens.write(0_u8, sorted_orders);
+                },
+                Asset::Not(()) => {
+                    let mut current_orders = self.not.read(0_u8);
+                    current_orders.append(order_packed);
+
+                    let sorted_orders = _sort_orders(true, current_orders);
+                    self.not.write(0_u8, sorted_orders);
+                }
+            };
+
+            return order_id;
         }
 
         // Market order için price 1 gönderilebilir.
@@ -108,6 +158,15 @@ mod Orderbook {
 
             return order_id;
         }
+
+         fn cancel_buy_order(ref self: ContractState, asset: Asset, order_id: u32) {
+            // TODO
+         }
+
+         fn cancel_sell_order(ref self: ContractState, asset: Asset, order_id: u32) {
+            // TODO
+            // loop ile arrayı tekrar generate et. Cancellanacak orderı ekleme. Sonrasında orderdaki miktarı sahibine gönder.
+         }
     }
 
     fn _match_incoming_sell_order(ref self: ContractState, taker: ContractAddress, asset: Asset, amount: u128, price: u16) -> u128 {
@@ -409,11 +468,58 @@ mod Orderbook {
         }
     }
 
+    fn _find_order(self: @ContractState, asset: Asset, side: u8, order_id: u32) -> felt252 {
+        match asset {
+            Asset::Happens(()) => {
+                let mut orders = self.happens.read(side);
+                if(orders.len() == 0) {
+                    return 0;
+                }
+                let mut found_order: felt252 = 0;
+                loop {
+                    match orders.pop_front() {
+                        Option::Some(v) => {
+                            let order = unpack_order(v);
+                            if(order.order_id == order_id) {
+                                found_order = v;
+                                break;
+                            };
+                        },
+                        Option::None(()) => {
+                            break;
+                        }
+                    };
+                };
+                return found_order;
+            },
+            Asset::Not(()) => {
+                let mut orders = self.not.read(side);
+                if(orders.len() == 0) {
+                    return 0;
+                }
+                let mut found_order: felt252 = 0;
+                loop {
+                    match orders.pop_front() {
+                        Option::Some(v) => {
+                            let order = unpack_order(v);
+                            if(order.order_id == order_id) {
+                                found_order = v;
+                                break;
+                            };
+                        },
+                        Option::None(()) => {
+                            break;
+                        }
+                    };
+                };
+                return found_order;
+            }
+        }
+    }
+
     fn _sort_orders(ascending: bool, orders: Array<felt252>) -> Array<felt252> {
-        // TODO
-        // orderlar sıralanmalı ve tekrar packlenmeli.
         if(ascending) {
-            _sort_orders_ascending(orders) // TODO ASCENDING
+            _sort_orders_ascending(orders)
         } else {
             _sort_orders_descending(orders)
         }
