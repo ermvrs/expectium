@@ -34,7 +34,7 @@ const MASK_32: u256 = 0xFFFFFFFF;
 const MASK_64: u256 = 0xFFFFFFFFFFFFFFFF;
 const MASK_128: u256 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
 
-fn pack_order(order: Order) -> felt252 {
+fn pack_order(order: Order) -> felt252 { // TEST EDİLDİ DOĞRU GİBİ DURUYOR.
     let mut packed: u256 = order.order_id.into(); // u32
     packed = packed | (u256_from_felt252(order.date.into()) * TWO_POW_32);
     packed = packed | (u256_from_felt252(order.amount.into()) * TWO_POW_96);
@@ -44,7 +44,7 @@ fn pack_order(order: Order) -> felt252 {
     packed.try_into().unwrap()
 }
 
-fn unpack_order(packed_order: felt252) -> Order {
+fn unpack_order(packed_order: felt252) -> Order { // TEST EDİLDİ DOĞRU GİBİ DURUYOR. EN YÜKSEK DEĞERLERLE TEST EDİLMELİ.
     // TODO
     let packed: u256 = packed_order.into();
 

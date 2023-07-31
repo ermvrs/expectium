@@ -3,7 +3,7 @@ use starknet::{ContractAddress};
 
 #[starknet::interface]
 trait IOrderbook<TContractState> {
-    // fn insert_buy_order(ref self: TContractState, asset: Asset, amount: u256, price: u16) -> u32; // order_id döndürür
+    fn insert_buy_order(ref self: TContractState, asset: Asset, amount: u256, price: u16) -> u32; // order_id döndürür
     fn insert_sell_order(ref self: TContractState, asset: Asset, amount: u256, price: u16) -> u32;
 }
 
@@ -30,6 +30,33 @@ mod Orderbook {
 
     #[external(v0)]
     impl Orderbook of IOrderbook<ContractState> {
+        /////
+        // asset: Alınacak asset
+        // amount: alınacak asset miktarı
+        // price: asset birim fiyatı
+        /////
+        fn insert_buy_order(ref self: ContractState, asset: Asset, amount: u256, price: u16) -> u32 {
+            let caller = get_caller_address();
+            let time = get_block_timestamp();
+
+            assert(price > 0_u16, 'price zero');
+            assert(price <= 10000_u16, 'price too high');
+
+            assert(amount.high == 0, 'amount too high');
+
+            let total_quote: u256 = amount * price.into();
+            assert(total_quote.high == 0, 'total_quote high');
+
+            _receive_quote_token(ref self, caller, amount);
+
+            let amount_low = amount.low; // alınacak asset miktarı
+            // usdcleri mevcut emirlerle spend edicez. Bu şekilde alım yaparsak düşük fiyatla alınanlarda fazladan usdc kalabilir. Onları geri gönderelim.
+
+            let (amount_left, spent_quote) = _match_incoming_buy_order(ref self, caller, asset, amount_low, price);
+
+            0_u32
+        }
+
         // Market order için price 1 gönderilebilir.
         fn insert_sell_order(ref self: ContractState, asset: Asset, amount: u256, price: u16) -> u32 {
             let caller = get_caller_address();
@@ -51,18 +78,16 @@ mod Orderbook {
                 return 0_u32;
             }
 
-            ///////////////////////////////////////////////////////////////
-            /////// TODO: Burada bir yerde orderları tekrar sıralamalıyız.
-            ///////////////////////////////////////////////////////////////
-
             let order_id = self.order_count.read() + 1; // 0. order id boş bırakılıyor. 0 döner ise order tamamen eşleşti demek.
             self.order_count.write(order_id + 1); // order id arttır.
 
-            let order: Order = Order {
+            let mut order: Order = Order {
                 order_id: order_id, date: time, amount: amount_left, price: price, status: OrderStatus::Initialized(()) // Eğer amount değiştiyse partially filled yap.
             };
 
+
             let order_packed = pack_order(order);
+            self.market_makers.write(order_id, caller); // market maker olarak ekleyelim.
 
             match asset {
                 Asset::Happens(()) => {
@@ -159,15 +184,229 @@ mod Orderbook {
                 // en son harcanmayan miktar geri dönmeli.
                 return amount_left;
             },
-            Asset::Not(()) => { // TODSO
-                return 0_u128;
+            Asset::Not(()) => { // TODO
+                let mut amount_left = amount;
+                let mut current_orders: Array<felt252> = self.not.read(0_u8); // mevcut not alış emirleri.
+
+                if(current_orders.len() == 0) { // order yoksa direk emri girelim.
+                    return amount_left;
+                }
+
+                let mut orders_modified = ArrayTrait::<felt252>::new();
+
+                loop {
+                    match current_orders.pop_front() {
+                        Option::Some(v) => {
+                            let mut order: Order = unpack_order(v);
+
+                            if(amount_left == 0 || order.price < price) { // Satış geldiği için order fiyatı bu fiyattan yüksek veya eşitlerle eşleşmeli.
+                                // bundan sonraki orderlar eşleşemez.
+                                // sadece listeye geri ekleyip devam edelim.
+                                orders_modified.append(v); // direk packli hali gönderelim.
+                                continue;
+                            };
+                            let order_owner: ContractAddress = self.market_makers.read(order.order_id);
+
+                            if(order.amount < amount_left) {
+                                let spent_amount = order.amount;
+                                amount_left -= spent_amount;
+
+                                order.status = OrderStatus::Filled(());
+                                order.amount = 0;
+
+                                _transfer_assets(ref self, Asset::Not(()), order_owner, u256 { high: 0, low: spent_amount }); // TODO: FEE
+                                // Yeni order girene(Taker), quote gönderelim.
+                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * order.price.into(); // TODO: FEE
+                                _transfer_quote_token(ref self, taker, quote_amount);
+
+                                // Orderı geri eklemeye gerek yok zaten tamamlandı.
+                                continue;
+                            };
+
+                            if(order.amount >= amount_left) {
+                                let spent_amount = amount_left;
+                                amount_left = 0;
+
+                                if(order.amount == spent_amount) {
+                                    order.status = OrderStatus::Filled(());
+                                    order.amount = 0;
+                                    // amount 0 olunca eklemeye gerek yok.
+                                } else {
+                                    order.status = OrderStatus::PartiallyFilled(());
+                                    order.amount -= spent_amount;
+                                    orders_modified.append(pack_order(order)); // güncellenen orderi ekleyelim.
+                                };
+
+                                _transfer_assets(ref self, Asset::Not(()), order_owner, u256 { high: 0, low: spent_amount }); // TODO: FEE
+                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * order.price.into(); // TODO: FEE
+                                _transfer_quote_token(ref self, taker, quote_amount);
+                            };
+                        },
+                        Option::None(()) => {
+                            // burada order listesini güncelleyebiliriz.
+                            let last_orders = orders_modified.clone();
+                            let sorted_orders = _sort_orders(false, last_orders); // buy emirleri sıralanacağı için fiyat yukardan aşağı olmalı.
+                            self.not.write(0_u8, sorted_orders); // order listesi güncellendi.
+                            break;
+                        }
+                    };
+                };
+                // en son harcanmayan miktar geri dönmeli.
+                return amount_left;
             }
         }
     }
 
-    fn _match_incoming_buy_order() -> u128 {
-        // TODO
-        0_u128
+    // returns geri kalan amount, harcanan quote
+    fn _match_incoming_buy_order(ref self: ContractState, taker: ContractAddress, asset: Asset, amount: u128, price: u16) -> (u128, u256) {
+        match asset {
+            Asset::Happens(()) => {
+                let mut amount_left = amount;
+                let mut quote_spent: u256 = 0;
+                let mut current_orders: Array<felt252> = self.happens.read(1_u8); // mevcut satış emirleri
+
+                if(current_orders.len() == 0) {
+                    return (amount_left, 0); // emir yoksa direk emir gir.
+                }
+
+                let mut orders_modified = ArrayTrait::<felt252>::new();
+
+                loop {
+                    match current_orders.pop_front() {
+                        Option::Some(v) => {
+                            let mut order: Order = unpack_order(v);
+
+                            if(amount_left == 0 || order.price > price) {
+                                orders_modified.append(v);
+                                continue;
+                            };
+
+                            let order_owner: ContractAddress = self.market_makers.read(order.order_id);
+
+                            if(order.amount < amount_left) { // miktar yetersiz bir sonraki orderlarada bakacağız.
+                                let spent_amount = order.amount; // bu orderda bu kadar alınacak
+                                amount_left -= spent_amount;
+
+                                order.status = OrderStatus::Filled(());
+                                order.amount = 0;
+
+                                // transfer işlemleri
+                                // 1) Emri girene orderdaki miktar kadar asset gönder
+                                _transfer_assets(ref self, Asset::Happens(()), taker, u256 { high: 0, low: spent_amount });
+                                // 2) Emir sahibine quote token gönder.
+
+                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * order.price.into();
+                                quote_spent += quote_amount;
+
+                                _transfer_quote_token(ref self, order_owner, quote_amount);
+                                continue;
+                            };
+
+                            if(order.amount >= amount_left) {
+                                // bu order miktarı zaten yeterli. alım yapıp returnlicez
+                                let spent_amount = amount_left;
+                                amount_left = 0;
+                                if(order.amount == spent_amount) {
+                                    order.status = OrderStatus::Filled(());
+                                    order.amount = 0;
+                                } else {
+                                    order.status = OrderStatus::PartiallyFilled(());
+                                    order.amount -= spent_amount;
+                                    orders_modified.append(pack_order(order));
+                                };
+
+                                _transfer_assets(ref self, Asset::Happens(()), taker, u256 { high: 0, low: spent_amount });
+
+                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * order.price.into();
+                                quote_spent += quote_amount;
+
+                                _transfer_quote_token(ref self, order_owner, quote_amount);
+                            };
+                        },
+                        Option::None(()) => {
+                            let last_orders = orders_modified.clone();
+                            let sorted_orders = _sort_orders(true, last_orders);
+                            self.happens.write(1_u8, sorted_orders);
+                            break;
+                        }
+                    };
+                };
+                return (amount_left, quote_spent);
+            },
+            Asset::Not(()) => {
+                let mut amount_left = amount;
+                let mut quote_spent: u256 = 0;
+                let mut current_orders: Array<felt252> = self.not.read(1_u8); // mevcut satış emirleri
+
+                if(current_orders.len() == 0) {
+                    return (amount_left, 0); // emir yoksa direk emir gir.
+                }
+
+                let mut orders_modified = ArrayTrait::<felt252>::new();
+
+                loop {
+                    match current_orders.pop_front() {
+                        Option::Some(v) => {
+                            let mut order: Order = unpack_order(v);
+
+                            if(amount_left == 0 || order.price > price) {
+                                orders_modified.append(v);
+                                continue;
+                            };
+
+                            let order_owner: ContractAddress = self.market_makers.read(order.order_id);
+
+                            if(order.amount < amount_left) { // miktar yetersiz bir sonraki orderlarada bakacağız.
+                                let spent_amount = order.amount; // bu orderda bu kadar alınacak
+                                amount_left -= spent_amount;
+
+                                order.status = OrderStatus::Filled(());
+                                order.amount = 0;
+
+                                // transfer işlemleri
+                                // 1) Emri girene orderdaki miktar kadar asset gönder
+                                _transfer_assets(ref self, Asset::Not(()), taker, u256 { high: 0, low: spent_amount });
+                                // 2) Emir sahibine quote token gönder.
+
+                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * order.price.into();
+                                quote_spent += quote_amount;
+
+                                _transfer_quote_token(ref self, order_owner, quote_amount);
+                                continue;
+                            };
+
+                            if(order.amount >= amount_left) {
+                                // bu order miktarı zaten yeterli. alım yapıp returnlicez
+                                let spent_amount = amount_left;
+                                amount_left = 0;
+                                if(order.amount == spent_amount) {
+                                    order.status = OrderStatus::Filled(());
+                                    order.amount = 0;
+                                } else {
+                                    order.status = OrderStatus::PartiallyFilled(());
+                                    order.amount -= spent_amount;
+                                    orders_modified.append(pack_order(order));
+                                };
+
+                                _transfer_assets(ref self, Asset::Not(()), taker, u256 { high: 0, low: spent_amount });
+
+                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * order.price.into();
+                                quote_spent += quote_amount;
+
+                                _transfer_quote_token(ref self, order_owner, quote_amount);
+                            };
+                        },
+                        Option::None(()) => {
+                            let last_orders = orders_modified.clone();
+                            let sorted_orders = _sort_orders(true, last_orders);
+                            self.not.write(1_u8, sorted_orders);
+                            break;
+                        }
+                    };
+                };
+                return (amount_left, quote_spent);    
+            }
+        }
     }
 
     fn _sort_orders(ascending: bool, orders: Array<felt252>) -> Array<felt252> {
@@ -180,7 +419,7 @@ mod Orderbook {
         }
     }
 
-    fn _receive_quote_token(ref self: ContractState, from: ContractAddress, to: ContractAddress, amount: u256) {
+    fn _receive_quote_token(ref self: ContractState, from: ContractAddress, amount: u256) {
         let this_addr = get_contract_address();
         let quote = self.quote_token.read();
 
