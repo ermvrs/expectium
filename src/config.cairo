@@ -63,6 +63,17 @@ fn unpack_order(packed_order: felt252) -> Order { // TEST EDİLDİ DOĞRU GİBİ
     }
 }
 
+#[derive(Copy, Drop, Serde, PartialEq)]
+enum FeeType {
+    Maker: (),
+    Taker: (),
+}
+
+#[derive(Copy, Drop, Serde, storage_access::StorageAccess)]
+struct PlatformFees {
+    maker: u32,
+    taker: u32
+}
 
 #[derive(Copy, Drop, Serde, PartialEq)]
 enum Asset {

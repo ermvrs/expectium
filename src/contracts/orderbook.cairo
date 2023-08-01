@@ -1,29 +1,11 @@
-use expectium::config::{Asset};
-use starknet::{ContractAddress};
-
-#[starknet::interface]
-trait IOrderbook<TContractState> {
-    fn insert_buy_order(ref self: TContractState, asset: Asset, amount: u256, price: u16) -> u32; // order_id döndürür
-    fn insert_sell_order(ref self: TContractState, asset: Asset, amount: u256, price: u16) -> u32;
-    fn cancel_buy_order(ref self: TContractState, asset: Asset, order_id: u32);
-    fn cancel_sell_order(ref self: TContractState, asset: Asset, order_id: u32);
-
-    // views
-    fn get_order(self: @TContractState, asset: Asset, side: u8, order_id: u32) -> felt252; // packed order döndürür. TODO: direk order döndürülebilir.
-    fn get_order_owner(self: @TContractState, order_id: u32) -> ContractAddress;
-
-    // operators
-    fn emergency_stop(ref self: TContractState);
-}
-
 #[starknet::contract]
 mod Orderbook {
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address, get_contract_address};
-    use expectium::config::{Order, Asset, OrderStatus, StorageAccessFelt252Array, pack_order, unpack_order};
-    use expectium::interfaces::{IMarketDispatcher, IMarketDispatcherTrait, IERC20Dispatcher, IERC20DispatcherTrait};
+    use expectium::config::{Order, Asset, PlatformFees, FeeType, OrderStatus, StorageAccessFelt252Array, pack_order, unpack_order};
+    use expectium::interfaces::{IOrderbook, IMarketDispatcher, IMarketDispatcherTrait, IERC20Dispatcher, IERC20DispatcherTrait};
     use expectium::array::{_sort_orders_descending, _sort_orders_ascending};
     use array::{ArrayTrait, SpanTrait};
-    use super::IOrderbook;
+    use zeroable::Zeroable;
     use traits::{Into, TryInto};
     use clone::Clone;
 
@@ -31,10 +13,14 @@ mod Orderbook {
     struct Storage {
         market: ContractAddress, // connected market address
         quote_token: ContractAddress,
+        distributor: ContractAddress, // Fee distributor contract
         happens: LegacyMap<u8, Array<felt252>>, // 0 buy 1 sell
         not: LegacyMap<u8, Array<felt252>>,
         market_makers: LegacyMap<u32, ContractAddress>, // Orderid -> Order owner
         order_count: u32,
+        fees: PlatformFees, // 10000 bp. TODO: set fees
+        is_emergency: bool,
+        operator: ContractAddress, // Orderbook operator: Will have superrights until testnet.
     }
 
     #[external(v0)]
@@ -53,6 +39,8 @@ mod Orderbook {
         // price: asset birim fiyatı
         /////
         fn insert_buy_order(ref self: ContractState, asset: Asset, amount: u256, price: u16) -> u32 {
+            assert(!_is_emergency(@self), 'in emergency');
+
             let caller = get_caller_address();
             let time = get_block_timestamp();
 
@@ -109,6 +97,8 @@ mod Orderbook {
 
         // Market order için price 1 gönderilebilir.
         fn insert_sell_order(ref self: ContractState, asset: Asset, amount: u256, price: u16) -> u32 {
+            assert(!_is_emergency(@self), 'in emergency');
+
             let caller = get_caller_address();
             let time = get_block_timestamp();
 
@@ -160,12 +150,35 @@ mod Orderbook {
         }
 
          fn cancel_buy_order(ref self: ContractState, asset: Asset, order_id: u32) {
-            // TODO
+            assert(!_is_emergency(@self), 'in emergency');
+
+            // TODO Kontrol
+            let caller = get_caller_address();
+            let order_owner: ContractAddress = self.market_makers.read(order_id);
+
+            assert(order_owner == caller, 'owner wrong');
+
+            _cancel_buy_order(ref self, order_owner, asset, order_id)
          }
 
          fn cancel_sell_order(ref self: ContractState, asset: Asset, order_id: u32) {
-            // TODO
-            // loop ile arrayı tekrar generate et. Cancellanacak orderı ekleme. Sonrasında orderdaki miktarı sahibine gönder.
+            assert(!_is_emergency(@self), 'in emergency');
+            // TODO Kontrol
+            let caller = get_caller_address();
+
+            let order_owner: ContractAddress = self.market_makers.read(order_id);
+
+            // Order varmı kontrol etmeye gerek yok zaten caller ile kontrol ettik.
+            assert(order_owner == caller, 'owner wrong');
+
+            _cancel_sell_order(ref self, order_owner, asset, order_id)
+         }
+
+         fn emergency_toggle(ref self: ContractState) {
+            let caller = get_caller_address();
+            assert(caller == self.operator.read(), 'only operator');
+
+            self.is_emergency.write(!self.is_emergency.read())
          }
     }
 
@@ -468,6 +481,117 @@ mod Orderbook {
         }
     }
 
+    fn _cancel_buy_order(ref self: ContractState, owner: ContractAddress, asset: Asset, order_id: u32) {
+        // gönderilecek miktar price * amount
+        match asset {
+            Asset::Happens(()) => {
+                let mut orders = self.happens.read(0_u8);
+                let mut new_orders = ArrayTrait::<felt252>::new();
+                loop {
+                    match orders.pop_front() {
+                        Option::Some(v) => {
+                            let unpacked_order: Order = unpack_order(v);
+
+                            if(unpacked_order.order_id != order_id) {
+                                new_orders.append(v);
+                                continue;
+                            }
+
+                            let transfer_amount: u256 = unpacked_order.price.into() * unpacked_order.amount.into();
+
+                            _transfer_quote_token(ref self, owner, transfer_amount);
+                        },
+                        Option::None(()) => {
+                            break;
+                        }
+                    };
+                };
+
+                let sorted_orders: Array<felt252> = _sort_orders(false, new_orders);
+                self.happens.write(0_u8, sorted_orders);
+            },
+            Asset::Not(()) => {
+                let mut orders = self.not.read(0_u8);
+                let mut new_orders = ArrayTrait::<felt252>::new();
+                loop {
+                    match orders.pop_front() {
+                        Option::Some(v) => {
+                            let unpacked_order: Order = unpack_order(v);
+
+                            if(unpacked_order.order_id != order_id) {
+                                new_orders.append(v);
+                                continue;
+                            }
+
+                            let transfer_amount: u256 = unpacked_order.price.into() * unpacked_order.amount.into();
+
+                            _transfer_quote_token(ref self, owner, transfer_amount);
+                        },
+                        Option::None(()) => {
+                            break;
+                        }
+                    };
+                };
+
+                let sorted_orders: Array<felt252> = _sort_orders(false, new_orders);
+                self.not.write(0_u8, sorted_orders);
+            }
+        };
+    }
+
+    fn _cancel_sell_order(ref self: ContractState, owner: ContractAddress, asset: Asset, order_id: u32) {
+        match asset {
+            Asset::Happens(()) => {
+                let mut orders = self.happens.read(1_u8);
+                let mut new_orders = ArrayTrait::<felt252>::new();
+                loop {
+                    match orders.pop_front() {
+                        Option::Some(v) => {
+                            let unpacked_order: Order = unpack_order(v);
+
+                            if(unpacked_order.order_id != order_id) {
+                                new_orders.append(v);
+                                continue;
+                            };
+
+                            _transfer_assets(ref self, Asset::Happens(()), owner, unpacked_order.amount.into());
+                        },
+                        Option::None(()) => {
+                            break;
+                        }
+                    };
+                };
+
+                let sorted_orders: Array<felt252> = _sort_orders(true, new_orders);
+                self.happens.write(1_u8, sorted_orders);
+            },
+            Asset::Not(()) => {
+                let mut orders = self.not.read(1_u8);
+                let mut new_orders = ArrayTrait::<felt252>::new();
+                loop {
+                    match orders.pop_front() {
+                        Option::Some(v) => {
+                            let unpacked_order: Order = unpack_order(v);
+
+                            if(unpacked_order.order_id != order_id) {
+                                new_orders.append(v);
+                                continue;
+                            };
+
+                            _transfer_assets(ref self, Asset::Not(()), owner, unpacked_order.amount.into());
+                        },
+                        Option::None(()) => {
+                            break;
+                        }
+                    };
+                };
+
+                let sorted_orders: Array<felt252> = _sort_orders(true, new_orders);
+                self.not.write(1_u8, sorted_orders);
+            }
+        }
+    }
+
     fn _find_order(self: @ContractState, asset: Asset, side: u8, order_id: u32) -> felt252 {
         match asset {
             Asset::Happens(()) => {
@@ -560,5 +684,33 @@ mod Orderbook {
         let balance_after = IMarketDispatcher { contract_address: market }.balance_of(this_addr, asset);
 
         assert((balance_after - amount) >= balance_before, 'EXPO: transfer fail')
+    }
+
+    fn _is_emergency(self: @ContractState) -> bool {
+        self.is_emergency.read()
+    }
+
+    // returns (fee_deducted, fee_mount)
+    fn _apply_fee(self: @ContractState, fee_type: FeeType, amount: u256) -> (u256, u256) {
+        let fees: PlatformFees = self.fees.read();
+
+        match fee_type {
+            FeeType::Maker(()) => {
+                let fee_amount: u256 = (amount * fees.maker.into()) / 10000;
+                let fee_deducted: u256 = amount - fee_amount;
+
+                assert((fee_deducted + fee_amount) <= amount, 'fee wrong');
+
+                return (fee_deducted, fee_amount);
+            },
+            FeeType::Taker(()) => {
+                let fee_amount: u256 = (amount * fees.taker.into()) / 10000;
+                let fee_deducted: u256 = amount - fee_amount;
+
+                assert((fee_deducted + fee_amount) <= amount, 'fee wrong');
+
+                return (fee_deducted, fee_amount);
+            }
+        }
     }
 }

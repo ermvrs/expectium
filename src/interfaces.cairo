@@ -2,6 +2,21 @@ use starknet::ContractAddress;
 use expectium::config::{Asset};
 
 #[starknet::interface]
+trait IOrderbook<TContractState> {
+    fn insert_buy_order(ref self: TContractState, asset: Asset, amount: u256, price: u16) -> u32; // order_id döndürür
+    fn insert_sell_order(ref self: TContractState, asset: Asset, amount: u256, price: u16) -> u32;
+    fn cancel_buy_order(ref self: TContractState, asset: Asset, order_id: u32);
+    fn cancel_sell_order(ref self: TContractState, asset: Asset, order_id: u32);
+
+    // views
+    fn get_order(self: @TContractState, asset: Asset, side: u8, order_id: u32) -> felt252; // packed order döndürür. TODO: direk order döndürülebilir.
+    fn get_order_owner(self: @TContractState, order_id: u32) -> ContractAddress;
+
+    // operators
+    fn emergency_toggle(ref self: TContractState);
+}
+
+#[starknet::interface]
 trait IMarket<TContractState> {
     // view methods
     fn balance_of(self: @TContractState, account: ContractAddress, asset: Asset) -> u256;
