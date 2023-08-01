@@ -23,8 +23,7 @@ fn _mergesort_orders_by_price_asc(mut arr: Array<felt252>) -> Array<felt252>{
 
     let middle = len / 2;
     let (mut left_arr, mut right_arr) = _split_array(ref arr, middle);
-    // TODO: max_return_count kaldır
-
+    
     let mut sorted_left = _mergesort_orders_by_price_asc(
         left_arr
     );
@@ -47,7 +46,6 @@ fn _mergesort_orders_by_price_desc(mut arr: Array<felt252>) -> Array<felt252>{
 
     let middle = len / 2;
     let (mut left_arr, mut right_arr) = _split_array(ref arr, middle);
-    // TODO: max_return_count kaldır
 
     let mut sorted_left = _mergesort_orders_by_price_desc(
         left_arr
@@ -121,12 +119,6 @@ fn _merge_and_slice_recursive_ascending( // orderları price yüksekten düşü�
     _merge_and_slice_recursive_ascending(left_arr, right_arr, ref result_arr, next_left_ix, next_right_ix);
 }
 
-
-// Split an array into two arrays.
-/// * `arr` - The array to split.
-/// * `index` - The index to split the array at.
-/// # Returns
-/// * `(Array<T>, Array<T>)` - The two arrays.
 fn _split_array<T, impl TCopy: Copy<T>, impl TDrop: Drop<T>>(
     ref arr: Array<T>, index: usize
 ) -> (Array::<T>, Array::<T>) {
@@ -140,13 +132,6 @@ fn _split_array<T, impl TCopy: Copy<T>, impl TDrop: Drop<T>>(
     (arr1, arr2)
 }
 
-// Fill an array with a value.
-/// * `arr` - The array to fill.
-/// * `fill_arr` - The array to fill with.
-/// * `index` - The index to start filling at.
-/// * `count` - The number of elements to fill.
-/// # Returns
-/// * `Array<T>` - The filled array.
 fn _fill_array<T, impl TCopy: Copy<T>, impl TDrop: Drop<T>>(
     ref arr: Array<T>, ref fill_arr: Array<T>, index: usize, count: usize
 ) {
