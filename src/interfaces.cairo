@@ -54,3 +54,9 @@ trait IERC20<TContractState> {
     fn balanceOf(self: TContractState, account: ContractAddress) -> u256;
     fn transferFrom(ref self: TContractState, sender: ContractAddress, recipient: ContractAddress, amount: u256) -> bool;
 }
+
+#[starknet::interface]
+trait IShares<TContractState> {
+    fn balance_of(account: ContractAddress) -> u256;
+    fn owner_of(token_id: u256) -> ContractAddress;
+}
