@@ -1,7 +1,8 @@
 #[starknet::contract]
 mod Orderbook {
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address, get_contract_address};
-    use expectium::config::{Order, Asset, PlatformFees, FeeType, OrderStatus, StorageAccessFelt252Array, pack_order, unpack_order};
+    use expectium::config::{Order, Asset, PlatformFees, FeeType, OrderStatus, StorageAccessFelt252Array, 
+            pack_order, unpack_order, safe_u16_to_u128, safe_u32_to_u128};
     use expectium::interfaces::{IOrderbook, IMarketDispatcher, IMarketDispatcherTrait, IERC20Dispatcher, IERC20DispatcherTrait};
     use expectium::array::{_sort_orders_descending, _sort_orders_ascending};
     use array::{ArrayTrait, SpanTrait};
@@ -49,7 +50,7 @@ mod Orderbook {
 
             assert(amount.high == 0, 'amount too high');
 
-            let total_quote: u256 = amount * price.into();
+            let total_quote: u256 = amount * safe_u16_to_u128(price).into();
             assert(total_quote.high == 0, 'total_quote high');
 
             _receive_quote_token(ref self, caller, amount);
@@ -66,7 +67,7 @@ mod Orderbook {
             let order_id = self.order_count.read() + 1; // 0. order id boş bırakılıyor. 0 döner ise order tamamen eşleşti demek.
             self.order_count.write(order_id + 1); // order id arttır.
 
-            let rest_amount: u128 = spent_quote.low / price.into();
+            let rest_amount: u128 = spent_quote.low / safe_u16_to_u128(price).into();
 
             let mut order: Order = Order {
                 order_id: order_id, date: time, amount: rest_amount, price: price, status: OrderStatus::Initialized(()) // Eğer amount değiştiyse partially filled yap.
@@ -218,7 +219,7 @@ mod Orderbook {
 
                                 _transfer_assets(ref self, Asset::Happens(()), order_owner, u256 { high: 0, low: spent_amount }); // TODO: FEE
                                 // Yeni order girene(Taker), quote gönderelim.
-                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * order.price.into(); // TODO: FEE
+                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into(); // TODO: FEE
                                 _transfer_quote_token(ref self, taker, quote_amount);
 
                                 // Orderı geri eklemeye gerek yok zaten tamamlandı.
@@ -240,7 +241,7 @@ mod Orderbook {
                                 };
 
                                 _transfer_assets(ref self, Asset::Happens(()), order_owner, u256 { high: 0, low: spent_amount }); // TODO: FEE
-                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * order.price.into(); // TODO: FEE
+                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into(); // TODO: FEE
                                 _transfer_quote_token(ref self, taker, quote_amount);
                             };
                         },
@@ -288,7 +289,7 @@ mod Orderbook {
 
                                 _transfer_assets(ref self, Asset::Not(()), order_owner, u256 { high: 0, low: spent_amount }); // TODO: FEE
                                 // Yeni order girene(Taker), quote gönderelim.
-                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * order.price.into(); // TODO: FEE
+                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into(); // TODO: FEE
                                 _transfer_quote_token(ref self, taker, quote_amount);
 
                                 // Orderı geri eklemeye gerek yok zaten tamamlandı.
@@ -310,7 +311,7 @@ mod Orderbook {
                                 };
 
                                 _transfer_assets(ref self, Asset::Not(()), order_owner, u256 { high: 0, low: spent_amount }); // TODO: FEE
-                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * order.price.into(); // TODO: FEE
+                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into(); // TODO: FEE
                                 _transfer_quote_token(ref self, taker, quote_amount);
                             };
                         },
@@ -367,7 +368,7 @@ mod Orderbook {
                                 _transfer_assets(ref self, Asset::Happens(()), taker, u256 { high: 0, low: spent_amount });
                                 // 2) Emir sahibine quote token gönder.
 
-                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * order.price.into();
+                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into();
                                 quote_spent += quote_amount;
 
                                 _transfer_quote_token(ref self, order_owner, quote_amount);
@@ -389,7 +390,7 @@ mod Orderbook {
 
                                 _transfer_assets(ref self, Asset::Happens(()), taker, u256 { high: 0, low: spent_amount });
 
-                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * order.price.into();
+                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into();
                                 quote_spent += quote_amount;
 
                                 _transfer_quote_token(ref self, order_owner, quote_amount);
@@ -440,7 +441,7 @@ mod Orderbook {
                                 _transfer_assets(ref self, Asset::Not(()), taker, u256 { high: 0, low: spent_amount });
                                 // 2) Emir sahibine quote token gönder.
 
-                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * order.price.into();
+                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into();
                                 quote_spent += quote_amount;
 
                                 _transfer_quote_token(ref self, order_owner, quote_amount);
@@ -462,7 +463,7 @@ mod Orderbook {
 
                                 _transfer_assets(ref self, Asset::Not(()), taker, u256 { high: 0, low: spent_amount });
 
-                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * order.price.into();
+                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into();
                                 quote_spent += quote_amount;
 
                                 _transfer_quote_token(ref self, order_owner, quote_amount);
@@ -497,7 +498,7 @@ mod Orderbook {
                                 continue;
                             }
 
-                            let transfer_amount: u256 = unpacked_order.price.into() * unpacked_order.amount.into();
+                            let transfer_amount: u256 = safe_u16_to_u128(unpacked_order.price).into() * unpacked_order.amount.into();
 
                             _transfer_quote_token(ref self, owner, transfer_amount);
                         },
@@ -523,7 +524,7 @@ mod Orderbook {
                                 continue;
                             }
 
-                            let transfer_amount: u256 = unpacked_order.price.into() * unpacked_order.amount.into();
+                            let transfer_amount: u256 = safe_u16_to_u128(unpacked_order.price).into() * unpacked_order.amount.into();
 
                             _transfer_quote_token(ref self, owner, transfer_amount);
                         },
@@ -696,7 +697,7 @@ mod Orderbook {
 
         match fee_type {
             FeeType::Maker(()) => {
-                let fee_amount: u256 = (amount * fees.maker.into()) / 10000;
+                let fee_amount: u256 = (amount * safe_u32_to_u128(fees.maker).into()) / 10000;
                 let fee_deducted: u256 = amount - fee_amount;
 
                 assert((fee_deducted + fee_amount) <= amount, 'fee wrong');
@@ -704,7 +705,7 @@ mod Orderbook {
                 return (fee_deducted, fee_amount);
             },
             FeeType::Taker(()) => {
-                let fee_amount: u256 = (amount * fees.taker.into()) / 10000;
+                let fee_amount: u256 = (amount * safe_u32_to_u128(fees.taker).into()) / 10000;
                 let fee_deducted: u256 = amount - fee_amount;
 
                 assert((fee_deducted + fee_amount) <= amount, 'fee wrong');
