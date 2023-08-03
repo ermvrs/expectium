@@ -1,4 +1,4 @@
-use starknet::{StorageAccess, ContractAddress, StorageBaseAddress, SyscallResult};
+use starknet::{Store, ContractAddress, StorageBaseAddress, SyscallResult};
 use array::{ArrayTrait, SpanTrait};
 use traits::{Into, TryInto};
 use result::ResultTrait;
@@ -8,7 +8,7 @@ use hash::LegacyHash;
 
 const ORDER_STRUCT_STORAGE_SIZE: u8 = 4;
 
-#[derive(Drop, Copy)]
+#[derive(Drop, Copy, starknet::Store)]
 struct Order { // TODO: cancel order için orderid gerekecek.
     // asset: Asset, // Gerek kalmaya bilir zaten mapli
     // side: OrderSide, // Zaten mapli
@@ -93,7 +93,7 @@ enum FeeType {
     Taker: (),
 }
 
-#[derive(Copy, Drop, Serde, storage_access::StorageAccess)]
+#[derive(Copy, Drop, Serde, starknet::Store)]
 struct PlatformFees {
     maker: u32,
     taker: u32
@@ -105,7 +105,7 @@ enum Asset {
     Not: (),
 }
 
-#[derive(Copy, Drop, Serde, PartialEq)]
+#[derive(Copy, Drop, Serde, PartialEq, starknet::Store)]
 enum OrderStatus {
     Initialized: (),
     PartiallyFilled: (),
@@ -143,62 +143,57 @@ impl Felt252TryIntoOrderStatus of TryInto<felt252, OrderStatus> {
     }
 }
 
-impl StorageAccessFelt252Array of StorageAccess<Array<felt252>> {
+impl StoreFelt252Array of Store<Array<felt252>> {
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<Array<felt252>> {
-        StorageAccessFelt252Array::read_at_offset_internal(address_domain, base, 0)
+        StoreFelt252Array::read_at_offset(address_domain, base, 0)
     }
 
-    fn write(
-        address_domain: u32, base: StorageBaseAddress, value: Array<felt252>
-    ) -> SyscallResult<()> {
-        StorageAccessFelt252Array::write_at_offset_internal(address_domain, base, 0, value)
+    fn write(address_domain: u32, base: StorageBaseAddress, value: Array<felt252>) -> SyscallResult<()> {
+        StoreFelt252Array::write_at_offset(address_domain, base, 0, value)
     }
 
-    fn read_at_offset_internal(
+    fn read_at_offset(
         address_domain: u32, base: StorageBaseAddress, mut offset: u8
     ) -> SyscallResult<Array<felt252>> {
         let mut arr: Array<felt252> = ArrayTrait::new();
 
-        // Read the stored array's length. If the length is superior to 255, the read will fail.
-        let len: u8 = StorageAccess::<u8>::read_at_offset_internal(address_domain, base, offset)
-            .expect('Storage Span too large');
+        let len: u8 = Store::<u8>::read_at_offset(address_domain, base, offset) // 0. offsette array length
+            .expect('Storage arr too large');
         offset += 1;
 
-        // Sequentially read all stored elements and append them to the array.
         let exit = len + offset;
         loop {
             if offset >= exit {
                 break;
             }
 
-            let value = StorageAccess::<felt252>::read_at_offset_internal(
+            let value = Store::<felt252>::read_at_offset(
                 address_domain, base, offset
             )
                 .unwrap();
             arr.append(value);
-            offset += StorageAccess::<felt252>::size_internal(value);
+            offset += Store::<felt252>::size();
         };
 
         // Return the array.
         Result::Ok(arr)
     }
 
-    fn write_at_offset_internal(
+    fn write_at_offset(
         address_domain: u32, base: StorageBaseAddress, mut offset: u8, mut value: Array<felt252>
     ) -> SyscallResult<()> {
-        // // Store the length of the array in the first storage slot.
         let len: u8 = value.len().try_into().expect('Storage - Span too large');
-        StorageAccess::<u8>::write_at_offset_internal(address_domain, base, offset, len);
+        Store::<u8>::write_at_offset(address_domain, base, offset, len);
         offset += 1;
 
         // Store the array elements sequentially
         loop {
             match value.pop_front() {
                 Option::Some(element) => {
-                    StorageAccess::<felt252>::write_at_offset_internal(
+                    Store::<felt252>::write_at_offset(
                         address_domain, base, offset, element
                     )?;
-                    offset += StorageAccess::<felt252>::size_internal(element);
+                    offset += Store::<felt252>::size();
                 },
                 Option::None(_) => {
                     break Result::Ok(());
@@ -207,11 +202,8 @@ impl StorageAccessFelt252Array of StorageAccess<Array<felt252>> {
         }
     }
 
-    fn size_internal(value: Array<felt252>) -> u8 {
-        if value.len() == 0 {
-            return 1;
-        }
-        1_u8 + StorageAccess::<felt252>::size_internal(*value[0]) * value.len().try_into().unwrap()
+    fn size() -> u8 {
+        1_u8 // Nasıl okuyacağız? aptal starknet
     }
 }
 

@@ -1,7 +1,7 @@
 #[starknet::contract]
 mod Orderbook {
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address, get_contract_address};
-    use expectium::config::{Order, Asset, PlatformFees, FeeType, OrderStatus, StorageAccessFelt252Array, 
+    use expectium::config::{Order, Asset, PlatformFees, FeeType, OrderStatus, StoreFelt252Array, 
             pack_order, unpack_order, safe_u16_to_u128, safe_u32_to_u128};
     use expectium::interfaces::{IOrderbook, IMarketDispatcher, IMarketDispatcherTrait, IERC20Dispatcher, IERC20DispatcherTrait};
     use expectium::array::{_sort_orders_descending, _sort_orders_ascending};
