@@ -1,4 +1,4 @@
-use starknet::ContractAddress;
+use starknet::{ContractAddress, ClassHash};
 #[starknet::interface]
 trait IDistributor<TContractState> {
     fn new_distribution(ref self: TContractState, token: ContractAddress, amount: u256); // Distributiona para ekler.
@@ -10,12 +10,45 @@ trait IDistributor<TContractState> {
     fn is_claims_available(self: @TContractState) -> bool;
     // operator
     fn toggle_claims(ref self: TContractState);
+    fn register_token(ref self: TContractState, token: ContractAddress);
+    fn upgrade_contract(ref self: TContractState, new_class: ClassHash);
+    fn transfer_operator(ref self: TContractState, new_operator: ContractAddress);
 }
 
 #[starknet::contract]
 mod Distributor {
-    use starknet::{ContractAddress, get_caller_address, get_contract_address, get_block_timestamp};
+    use starknet::{ContractAddress, get_caller_address, get_contract_address, get_block_timestamp, ClassHash, replace_class_syscall};
     use expectium::interfaces::{IERC20Dispatcher, IERC20DispatcherTrait, ISharesDispatcher, ISharesDispatcherTrait};
+    use super::IDistributor;
+
+    #[event]
+    #[derive(Drop, starknet::Event)]
+    enum Event {
+        Claimed: Claimed,
+        NewDistribution: NewDistribution,
+        OperatorChanged: OperatorChanged,
+    }
+
+    #[derive(Drop, PartialEq, starknet::Event)]
+    struct Claimed {
+        claimer: ContractAddress,
+        token: ContractAddress,
+        amount: u256,
+        time: u64
+    }
+
+    #[derive(Drop, PartialEq, starknet::Event)]
+    struct NewDistribution {
+        token: ContractAddress,
+        amount: u256,
+        time: u64
+    }
+
+    #[derive(Drop, PartialEq, starknet::Event)]
+    struct OperatorChanged {
+        old_operator: ContractAddress,
+        new_operator: ContractAddress,
+    }
 
     #[storage]
     struct Storage {
@@ -25,6 +58,16 @@ mod Distributor {
         claims: LegacyMap<u256, u256>, // share_id -> amount
         operator: ContractAddress,
         available: bool, // is claims available
+    }
+
+    #[constructor]
+    fn constructor(
+        ref self: ContractState,
+        operator: ContractAddress,
+        shares: ContractAddress
+    ) {
+        self.shares.write(shares);
+        self.operator.write(operator);
     }
 
     #[external(v0)]
@@ -39,15 +82,15 @@ mod Distributor {
             total_distribution - already_claimed
         }
 
-        fn total_distribution(self: @TContractState, token: ContractAddress) -> u256 {
+        fn total_distribution(self: @ContractState, token: ContractAddress) -> u256 {
             self.total_distributions.read(token)
         }
 
-        fn total_distribution_per_share(self: @TContractState, token: ContractAddress) -> u256 {
-            _total_distribution_per_share(token)
+        fn total_distribution_per_share(self: @ContractState, token: ContractAddress) -> u256 {
+            _total_distribution_per_share(self, token)
         }
 
-        fn is_claims_available(self: @TContractState) -> bool {
+        fn is_claims_available(self: @ContractState) -> bool {
             self.available.read()
         }
 
@@ -68,6 +111,10 @@ mod Distributor {
 
             let time = get_block_timestamp();
             // event emit
+
+            self.emit(Event::NewDistribution(
+                        NewDistribution { token: token, amount: amount, time: time }
+                    ));
         }
 
         fn claim(ref self: ContractState, token: ContractAddress, share_id: u256) {
@@ -94,14 +141,42 @@ mod Distributor {
 
             IERC20Dispatcher{ contract_address: token }.transfer(owner, net_amount);
 
+            let time = get_block_timestamp();
             // event emit
+
+            self.emit(Event::Claimed(
+                        Claimed { claimer: owner, token: token, amount: net_amount, time: time }
+                    ));
         }
 
-        fn toggle_claims(ref self: TContractState) {
+        fn toggle_claims(ref self: ContractState) {
             let caller = get_caller_address();
             assert(caller == self.operator.read(), 'only operator');
 
             self.available.write(!self.available.read())
+        }
+
+        fn register_token(ref self: ContractState, token: ContractAddress) {
+            let caller = get_caller_address();
+            assert(caller == self.operator.read(), 'only operator');
+        }
+
+        fn upgrade_contract(ref self: ContractState, new_class: ClassHash) {
+            let caller = get_caller_address();
+            assert(caller == self.operator.read(), 'only operator');
+
+            replace_class_syscall(new_class);
+        }
+
+        fn transfer_operator(ref self: ContractState, new_operator: ContractAddress) {
+            let caller = get_caller_address();
+            assert(caller == self.operator.read(), 'only operator');
+
+            self.operator.write(new_operator);
+
+            self.emit(Event::OperatorChanged(
+                OperatorChanged { old_operator: caller, new_operator: new_operator }
+            ));
         }
     }
 

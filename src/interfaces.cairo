@@ -1,4 +1,4 @@
-use starknet::ContractAddress;
+use starknet::{ContractAddress, ClassHash};
 use expectium::config::{Asset};
 
 #[starknet::interface]
@@ -25,15 +25,18 @@ trait IMarket<TContractState> {
     fn resolver(self: @TContractState) -> ContractAddress;
     fn collateral(self: @TContractState) -> ContractAddress;
     fn resolve_rate(self: @TContractState) -> (u16, u16);
+    fn market_id(self: @TContractState) -> u64;
     // externals
     fn split_shares(ref self: TContractState, invest: u256);
     fn merge_shares(ref self: TContractState, shares: u256);
+    fn convert_shares(ref self: TContractState, asset: Asset, amount: u256);
     fn approve(ref self: TContractState, spender: ContractAddress);
     fn revoke_approval(ref self: TContractState, spender: ContractAddress);
     fn transfer_from(ref self: TContractState, from: ContractAddress, to: ContractAddress, asset: Asset, amount: u256);
     fn transfer(ref self: TContractState, to: ContractAddress, asset: Asset, amount: u256);
     // operator or access controlled
     fn resolve_market(ref self: TContractState, happens: u16, not: u16);
+    fn upgrade_market(ref self: TContractState, new_class: ClassHash);
 }
 
 #[starknet::interface]
