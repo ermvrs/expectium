@@ -34,11 +34,29 @@ const MASK_32: u256 = 0xFFFFFFFF;
 const MASK_64: u256 = 0xFFFFFFFFFFFFFFFF;
 const MASK_128: u256 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
 
+fn safe_u32_to_u128(val: u32) -> u128 {
+    let val_felt: felt252 = val.into();
+
+    val_felt.try_into().unwrap()
+}
+
+fn safe_u64_to_u128(val: u64) -> u128 {
+    let val_felt: felt252 = val.into();
+
+    val_felt.try_into().unwrap()
+}
+
+fn safe_u16_to_u128(val: u16) -> u128 {
+    let val_felt: felt252 = val.into();
+
+    val_felt.try_into().unwrap()
+}
+
 fn pack_order(order: Order) -> felt252 { // TEST EDİLDİ DOĞRU GİBİ DURUYOR.
-    let mut packed: u256 = order.order_id.into(); // u32
-    packed = packed | (u256_from_felt252(order.date.into()) * TWO_POW_32);
+    let mut packed: u256 = safe_u32_to_u128(order.order_id).into(); // u32
+    packed = packed | (u256_from_felt252(safe_u64_to_u128(order.date).into()) * TWO_POW_32);
     packed = packed | (u256_from_felt252(order.amount.into()) * TWO_POW_96);
-    packed = packed | (u256_from_felt252(order.price.into()) * TWO_POW_224);
+    packed = packed | (u256_from_felt252(safe_u16_to_u128(order.price).into()) * TWO_POW_224);
     packed = packed | (u256_from_felt252(order.status.into()) * TWO_POW_240); // KONTROL EDİLMELİ PACK DÜZGÜN MÜ.
 
     packed.try_into().unwrap()
@@ -49,10 +67,10 @@ fn unpack_order(packed_order: felt252) -> Order { // TEST EDİLDİ DOĞRU GİBİ
     let packed: u256 = packed_order.into();
 
     let order_id: u32 = (packed & MASK_32).try_into().unwrap();
-    let date: u64 = ((packed * TWO_POW_32) & MASK_64).try_into().unwrap(); // burada libfuncs problemi var
-    let amount: u128 = ((packed * TWO_POW_96) & MASK_128).try_into().unwrap();
-    let price: u16 = ((packed * TWO_POW_224) & MASK_16).try_into().unwrap();
-    let status: felt252 = ((packed * TWO_POW_240) & MASK_8).try_into().unwrap();
+    let date: u64 = ((packed / TWO_POW_32) & MASK_64).try_into().unwrap(); // burada libfuncs problemi var
+    let amount: u128 = ((packed / TWO_POW_96) & MASK_128).try_into().unwrap();
+    let price: u16 = ((packed / TWO_POW_224) & MASK_16).try_into().unwrap();
+    let status: felt252 = ((packed / TWO_POW_240) & MASK_8).try_into().unwrap();
 
     Order {
         order_id : order_id, 
