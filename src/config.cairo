@@ -52,12 +52,18 @@ fn safe_u16_to_u128(val: u16) -> u128 {
     val_felt.try_into().unwrap()
 }
 
+fn safe_status_to_u128(val: OrderStatus) -> u128 {
+    let val_felt: felt252 = val.into();
+
+    val_felt.try_into().unwrap()
+}
+
 fn pack_order(order: Order) -> felt252 { // TEST EDİLDİ DOĞRU GİBİ DURUYOR.
     let mut packed: u256 = safe_u32_to_u128(order.order_id).into(); // u32
     packed = packed | (u256_from_felt252(safe_u64_to_u128(order.date).into()) * TWO_POW_32);
     packed = packed | (u256_from_felt252(order.amount.into()) * TWO_POW_96);
     packed = packed | (u256_from_felt252(safe_u16_to_u128(order.price).into()) * TWO_POW_224);
-    packed = packed | (u256_from_felt252(order.status.into()) * TWO_POW_240); // KONTROL EDİLMELİ PACK DÜZGÜN MÜ.
+    packed = packed | (u256_from_felt252(safe_status_to_u128(order.status).into()) * TWO_POW_240); // KONTROL EDİLMELİ PACK DÜZGÜN MÜ.
 
     packed.try_into().unwrap()
 }
