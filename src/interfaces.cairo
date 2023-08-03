@@ -57,6 +57,6 @@ trait IERC20<TContractState> {
 
 #[starknet::interface]
 trait IShares<TContractState> {
-    fn balance_of(account: ContractAddress) -> u256;
-    fn owner_of(token_id: u256) -> ContractAddress;
+    fn balance_of(self: @TContractState, account: ContractAddress) -> u256;
+    fn owner_of(self: @TContractState, token_id: u256) -> ContractAddress;
 }
