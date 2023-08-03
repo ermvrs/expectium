@@ -73,10 +73,10 @@ fn unpack_order(packed_order: felt252) -> Order { // TEST EDİLDİ DOĞRU GİBİ
     let packed: u256 = packed_order.into();
 
     let order_id: u32 = (packed & MASK_32).try_into().unwrap();
-    let date: u64 = ((packed / TWO_POW_32) & MASK_64).try_into().unwrap(); // burada libfuncs problemi var
-    let amount: u128 = ((packed / TWO_POW_96) & MASK_128).try_into().unwrap();
-    let price: u16 = ((packed / TWO_POW_224) & MASK_16).try_into().unwrap();
-    let status: felt252 = ((packed / TWO_POW_240) & MASK_8).try_into().unwrap();
+    let date: u64 = ((packed * TWO_POW_32) & MASK_64).try_into().unwrap(); // burada libfuncs problemi var
+    let amount: u128 = ((packed * TWO_POW_96) & MASK_128).try_into().unwrap();
+    let price: u16 = ((packed * TWO_POW_224) & MASK_16).try_into().unwrap();
+    let status: felt252 = ((packed * TWO_POW_240) & MASK_8).try_into().unwrap();
 
     Order {
         order_id : order_id, 
