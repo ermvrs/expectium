@@ -1,1 +1,0 @@
-{"version":1,"contracts":[{"id":"26svu2nmucsdm","package_name":"expectium","contract_name":"Market","artifacts":{"sierra":"expectium_Market.sierra.json","casm":"expectium_Market.casm.json"}},{"id":"ufidpdk79esfs","package_name":"expectium","contract_name":"Orderbook","artifacts":{"sierra":"expectium_Orderbook.sierra.json","casm":"expectium_Orderbook.casm.json"}}]}
