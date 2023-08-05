@@ -18,11 +18,13 @@ mod Market {
     }
 
     #[constructor]
-    fn constructor(ref self: ContractState, id: u64) {
+    fn constructor(ref self: ContractState, factory: ContractAddress, collateral: ContractAddress, id: u64, resolver: ContractAddress) {
         let caller = get_caller_address();
 
-        self.factory.write(caller);
+        self.factory.write(factory);
         self.market_id.write(id);
+        self.resolver.write(resolver);
+        self.collateral.write(collateral);
     }
 
     #[external(v0)]
@@ -47,6 +49,10 @@ mod Market {
             self.collateral.read()
         }
 
+        fn factory(self: @ContractState) -> ContractAddress {
+            self.factory.read()
+        }
+
         fn resolve_rate(self: @ContractState) -> (u16, u16) {
             let happens_ratio = self.resolve_ratio.read(Asset::Happens(()));
             let not_ratio = self.resolve_ratio.read(Asset::Not(()));
@@ -54,12 +60,16 @@ mod Market {
             (happens_ratio, not_ratio)
         }
 
+        fn is_resolved(self: @ContractState) -> bool {
+            _is_resolved(self)
+        }
+
         fn market_id(self: @ContractState) -> u64 {
             self.market_id.read()
         }
 
         // Externals
-        fn split_shares(ref self: ContractState, invest: u256) {
+        fn mint_shares(ref self: ContractState, invest: u256) {
             // 1) Receive collateral with invest amount to this contract.
             // 2) Increase caller balance of both assets (happens & not)
             let caller = get_caller_address();
@@ -102,6 +112,23 @@ mod Market {
 
             _transfer_collateral(ref self, caller, collateral_turnback);
         }
+        
+        // Only Resolver
+        fn resolve_market(ref self: ContractState, happens: u16, not: u16) {
+            let caller = get_caller_address();
+            assert(caller == self.resolver.read(), 'only resolver');
+            assert((happens + not) == 10000, 'wrong ratio');
+            assert(!_is_resolved(@self), 'already resolved'); // Kontrol et çalışıyor mu?
+
+            self.resolve_ratio.write(Asset::Happens(()), happens);
+            self.resolve_ratio.write(Asset::Not(()), not);
+        }
+
+        fn upgrade_market(ref self: ContractState, new_class: ClassHash) {
+            _assert_only_factory(@self);
+
+            replace_class_syscall(new_class);
+        }
 
         fn approve(ref self: ContractState, spender: ContractAddress) {
             let caller = get_caller_address();
@@ -134,23 +161,6 @@ mod Market {
 
             self.balances.write((asset, caller), current_balance - amount);
             self.balances.write((asset, to), self.balances.read((asset, to)) + amount);
-        }
-
-        // Only Resolver
-        fn resolve_market(ref self: ContractState, happens: u16, not: u16) {
-            let caller = get_caller_address();
-            assert(caller == self.resolver.read(), 'only resolver');
-            assert((happens + not) == 10000, 'wrong ratio');
-            assert(!_is_resolved(@self), 'already resolved'); // Kontrol et çalışıyor mu?
-
-            self.resolve_ratio.write(Asset::Happens(()), happens);
-            self.resolve_ratio.write(Asset::Not(()), not);
-        }
-
-        fn upgrade_market(ref self: ContractState, new_class: ClassHash) {
-            _assert_only_factory(@self);
-
-            replace_class_syscall(new_class);
         }
     }
 
