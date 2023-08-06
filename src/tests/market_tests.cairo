@@ -1,5 +1,6 @@
 use starknet::{ContractAddress, contract_address_const, ClassHash};
 use expectium::tests::mocks::interfaces::{IAccountDispatcher, IAccountDispatcherTrait};
+use expectium::tests::mocks::mock_market_v2::MockMarket;
 use expectium::interfaces::{IFactoryDispatcher, IFactoryDispatcherTrait, IMarketDispatcher, 
                             IMarketDispatcherTrait, IERC20Dispatcher, IERC20DispatcherTrait,
                             };
@@ -204,6 +205,53 @@ fn test_convert_shares() {
     assert((usdc_bal_after - usdc_bal) == 1000000000000000000, 'convert collat wrong');
 }
 
-// TODO: revoke approval, upgrade_market, transfer, 
+#[test]
+#[available_gas(1000000000)]
+#[should_panic(expected: ('only resolver', 'ENTRYPOINT_FAILED', 'ENTRYPOINT_FAILED'))]
+fn test_try_resolve_unauthorized() {
+    let setup = setup_with_mergeshares();
+
+    let alice = setup.alice;
+    let market = setup.market;
+
+    alice.market_resolve_market(market.contract_address, 10000_u16, 0_u16);
+}
+
+#[test]
+#[available_gas(1000000000)]
+#[should_panic(expected: ('wrong ratio', 'ENTRYPOINT_FAILED', 'ENTRYPOINT_FAILED'))]
+fn test_try_resolve_wrong_ratio() {
+    let setup = setup_with_mergeshares();
+
+    let operator = setup.operator;
+    let market = setup.market;
+
+    operator.market_resolve_market(market.contract_address, 5000_u16, 4000_u16);
+}
+
+#[test]
+#[available_gas(1000000000)]
+fn test_upgrade_via_factory() {
+    let setup = setup_with_mergeshares();
+
+    let operator = setup.operator;
+    let market = setup.market;
+    let factory = setup.factory;
+
+    let current_market_id = market.market_id();
+    assert(current_market_id == 0, 'market id wrong');
+
+    let new_hash: ClassHash = MockMarket::TEST_CLASS_HASH.try_into().unwrap();
+
+    operator.factory_change_current_classhash(factory.contract_address, new_hash);
+
+    operator.factory_upgrade_market(factory.contract_address, current_market_id);
+
+    let final_market_id = market.market_id();
+
+    assert(final_market_id == 2, 'final id wrong');
+}
+
+// TODO: upgrade_market, transfer, 
 // resolve on non-resolver, mint shares without balance,
 // merge shares without balance, convert shares without balance.

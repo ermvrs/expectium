@@ -50,6 +50,12 @@ trait IAccount<TContractState> {
             collateral: ContractAddress
     ) -> (u64, ContractAddress);
 
+    fn factory_upgrade_market(
+            self: @TContractState,
+            contract_address: ContractAddress,
+            market_id: u64
+        );
+
     fn market_approve(
             self: @TContractState,
             contract_address: ContractAddress,
@@ -96,4 +102,9 @@ trait IAccount<TContractState> {
             amount: u256
         );
 
+}
+
+#[starknet::interface]
+trait IMockMarketV2<TContractState> {
+     fn market_id(self: @TContractState) -> u64;
 }

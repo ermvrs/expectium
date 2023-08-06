@@ -73,6 +73,14 @@ mod Account {
             IFactoryDispatcher { contract_address }.create_market(resolver, collateral)
         }
 
+        fn factory_upgrade_market(
+            self: @ContractState,
+            contract_address: ContractAddress,
+            market_id: u64
+        ) {
+            IFactoryDispatcher { contract_address }.upgrade_market(market_id);
+        }
+
         fn market_approve(
             self: @ContractState,
             contract_address: ContractAddress,
