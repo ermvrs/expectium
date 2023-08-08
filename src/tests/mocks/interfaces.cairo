@@ -102,6 +102,21 @@ trait IAccount<TContractState> {
             amount: u256
         );
 
+        fn orderbook_insert_buy_order(
+                self: @TContractState,
+                contract_address: ContractAddress,
+                asset: Asset,
+                amount: u256,
+                price: u16
+        ) -> u32;
+
+        fn orderbook_insert_sell_order(
+            self: @TContractState,
+            contract_address: ContractAddress,
+            asset: Asset,
+            amount: u256,
+            price: u16
+        ) -> u32;
 }
 
 #[starknet::interface]

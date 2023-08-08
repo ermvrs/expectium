@@ -14,7 +14,7 @@ mod Orderbook {
     struct Storage {
         market: ContractAddress, // connected market address
         quote_token: ContractAddress,
-        distributor: ContractAddress, // Fee distributor contract
+        distributor: ContractAddress, // Fee distributor contract // TODO !!
         happens: LegacyMap<u8, Array<felt252>>, // 0 buy 1 sell
         not: LegacyMap<u8, Array<felt252>>,
         market_makers: LegacyMap<u32, ContractAddress>, // Orderid -> Order owner
@@ -24,11 +24,26 @@ mod Orderbook {
         operator: ContractAddress, // Orderbook operator: Will have superrights until testnet.
     }
 
+    #[constructor]
+    fn constructor(ref self: ContractState, market: ContractAddress, operator: ContractAddress, quote_token: ContractAddress) {
+        self.operator.write(operator);
+        self.market.write(market);
+        self.quote_token.write(quote_token);
+    }
+
     #[external(v0)]
     impl Orderbook of IOrderbook<ContractState> {
         fn get_order(self: @ContractState, asset: Asset, side: u8, order_id: u32) -> felt252 {
             assert(side < 2_u8, 'side wrong');
             _find_order(self, asset, side, order_id)
+        }
+
+        fn market(self: @ContractState) -> ContractAddress {
+            self.market.read()
+        }
+
+        fn operator(self: @ContractState) -> ContractAddress {
+            self.operator.read()
         }
 
         fn get_order_owner(self: @ContractState, order_id: u32) -> ContractAddress {
@@ -40,6 +55,7 @@ mod Orderbook {
         // price: asset birim fiyatı
         /////
         fn insert_buy_order(ref self: ContractState, asset: Asset, amount: u256, price: u16) -> u32 {
+            // Fiyat hesaplamada bi hata var
             assert(!_is_emergency(@self), 'in emergency');
 
             let caller = get_caller_address();
@@ -53,21 +69,23 @@ mod Orderbook {
             let total_quote: u256 = amount * safe_u16_to_u128(price).into();
             assert(total_quote.high == 0, 'total_quote high');
 
-            _receive_quote_token(ref self, caller, amount);
+            _receive_quote_token(ref self, caller, total_quote);
 
             let amount_low = amount.low; // alınacak asset miktarı
             // usdcleri mevcut emirlerle spend edicez. Bu şekilde alım yaparsak düşük fiyatla alınanlarda fazladan usdc kalabilir. Onları geri gönderelim.
 
             let (amount_left, spent_quote) = _match_incoming_buy_order(ref self, caller, asset, amount_low, price);
             // Dönen değerler. geriye kalan amount, spent_quote ise harcanana usdc.
-            // Buradan sonra. kalan spent_quote miktarı kadar emir girilmeli.
+            // Buradan sonra. kalan total_quote - spent_quote miktarı kadar emir girilmeli.
             if(spent_quote == total_quote) {
                 return 0_u32;
             }
+            let quote_left = total_quote - spent_quote; // Fix : 08.08.23 18:46 !! Selldede olabilir
+
             let order_id = self.order_count.read() + 1; // 0. order id boş bırakılıyor. 0 döner ise order tamamen eşleşti demek.
             self.order_count.write(order_id + 1); // order id arttır.
 
-            let rest_amount: u128 = spent_quote.low / safe_u16_to_u128(price).into();
+            let rest_amount: u128 = quote_left.low / safe_u16_to_u128(price).into();
 
             let mut order: Order = Order {
                 order_id: order_id, date: time, amount: rest_amount, price: price, status: OrderStatus::Initialized(()) // Eğer amount değiştiyse partially filled yap.

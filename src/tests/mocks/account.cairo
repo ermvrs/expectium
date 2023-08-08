@@ -4,7 +4,8 @@ mod Account {
     use expectium::config::Asset;
     use expectium::interfaces::{IERC20Dispatcher, IERC20DispatcherTrait, 
             IFactoryDispatcher, IFactoryDispatcherTrait,
-            IMarketDispatcher, IMarketDispatcherTrait};
+            IMarketDispatcher, IMarketDispatcherTrait,
+            IOrderbookDispatcher, IOrderbookDispatcherTrait};
     use expectium::tests::mocks::interfaces::{IAccount};
 
     #[storage]
@@ -140,6 +141,26 @@ mod Account {
             amount: u256
         ) {
             IMarketDispatcher { contract_address }.convert_shares(asset, amount);
+        }
+
+        fn orderbook_insert_buy_order(
+            self: @ContractState,
+            contract_address: ContractAddress,
+            asset: Asset,
+            amount: u256,
+            price: u16
+        ) -> u32 {
+            IOrderbookDispatcher { contract_address }.insert_buy_order(asset, amount, price)
+        }
+
+        fn orderbook_insert_sell_order(
+            self: @ContractState,
+            contract_address: ContractAddress,
+            asset: Asset,
+            amount: u256,
+            price: u16
+        ) -> u32 {
+            IOrderbookDispatcher { contract_address }.insert_sell_order(asset, amount, price)
         }
     }
 }

@@ -252,6 +252,11 @@ fn test_upgrade_via_factory() {
     assert(final_market_id == 2, 'final id wrong');
 }
 
-// TODO: upgrade_market, transfer, 
-// resolve on non-resolver, mint shares without balance,
-// merge shares without balance, convert shares without balance.
+#[test]
+#[available_gas(1000000000)]
+#[should_panic(expected: ('ERC20_INSUFFICIENT_ALLOWANCE', 'ENTRYPOINT_FAILED', 'ENTRYPOINT_FAILED', 'ENTRYPOINT_FAILED'))]
+fn test_mint_without_approval() {
+    let setup = setup();
+
+    setup.alice.market_mint_shares(setup.market.contract_address, 1000000000000000000);
+}
