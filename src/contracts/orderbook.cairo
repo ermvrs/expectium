@@ -38,6 +38,14 @@ mod Orderbook {
             _find_order(self, asset, side, order_id)
         }
 
+        fn get_orders(self: @ContractState, asset: Asset, side: u8) -> Array<felt252> {
+            assert(side < 2_u8, 'side wrong');
+            match asset {
+                Asset::Happens(()) => self.happens.read(side),
+                Asset::Not(()) => self.not.read(side)
+            }
+        }
+
         fn market(self: @ContractState) -> ContractAddress {
             self.market.read()
         }
@@ -83,7 +91,7 @@ mod Orderbook {
             let quote_left = total_quote - spent_quote; // Fix : 08.08.23 18:46 !! Selldede olabilir
 
             let order_id = self.order_count.read() + 1; // 0. order id boş bırakılıyor. 0 döner ise order tamamen eşleşti demek.
-            self.order_count.write(order_id + 1); // order id arttır.
+            self.order_count.write(order_id);
 
             let rest_amount: u128 = quote_left.low / safe_u16_to_u128(price).into();
 
@@ -99,14 +107,14 @@ mod Orderbook {
                     let mut current_orders = self.happens.read(0_u8);
                     current_orders.append(order_packed);
 
-                    let sorted_orders = _sort_orders(true, current_orders);
+                    let sorted_orders = _sort_orders(false, current_orders);
                     self.happens.write(0_u8, sorted_orders);
                 },
                 Asset::Not(()) => {
                     let mut current_orders = self.not.read(0_u8);
                     current_orders.append(order_packed);
 
-                    let sorted_orders = _sort_orders(true, current_orders);
+                    let sorted_orders = _sort_orders(false, current_orders);
                     self.not.write(0_u8, sorted_orders);
                 }
             };
@@ -138,7 +146,7 @@ mod Orderbook {
             }
 
             let order_id = self.order_count.read() + 1; // 0. order id boş bırakılıyor. 0 döner ise order tamamen eşleşti demek.
-            self.order_count.write(order_id + 1); // order id arttır.
+            self.order_count.write(order_id);
 
             let mut order: Order = Order {
                 order_id: order_id, date: time, amount: amount_left, price: price, status: OrderStatus::Initialized(()) // Eğer amount değiştiyse partially filled yap.

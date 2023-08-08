@@ -10,6 +10,7 @@ trait IOrderbook<TContractState> {
 
     // views
     fn get_order(self: @TContractState, asset: Asset, side: u8, order_id: u32) -> felt252; // packed order döndürür. TODO: direk order döndürülebilir.
+    fn get_orders(self: @TContractState, asset: Asset, side: u8) -> Array<felt252>;
     fn get_order_owner(self: @TContractState, order_id: u32) -> ContractAddress;
     fn market(self: @TContractState) -> ContractAddress;
     fn operator(self: @TContractState) -> ContractAddress;

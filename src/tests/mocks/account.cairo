@@ -162,5 +162,23 @@ mod Account {
         ) -> u32 {
             IOrderbookDispatcher { contract_address }.insert_sell_order(asset, amount, price)
         }
+
+        fn orderbook_cancel_buy_order(
+            self: @ContractState,
+            contract_address: ContractAddress,
+            asset: Asset,
+            order_id: u32
+        ) {
+            IOrderbookDispatcher { contract_address }.cancel_buy_order(asset, order_id);
+        }
+
+        fn orderbook_cancel_sell_order(
+            self: @ContractState,
+            contract_address: ContractAddress,
+            asset: Asset,
+            order_id: u32
+        ) {
+            IOrderbookDispatcher { contract_address }.cancel_sell_order(asset, order_id);
+        }
     }
 }

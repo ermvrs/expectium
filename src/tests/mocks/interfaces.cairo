@@ -117,6 +117,20 @@ trait IAccount<TContractState> {
             amount: u256,
             price: u16
         ) -> u32;
+
+        fn orderbook_cancel_sell_order(
+            self: @TContractState,
+            contract_address: ContractAddress,
+            asset: Asset,
+            order_id: u32
+        );
+
+        fn orderbook_cancel_buy_order(
+            self: @TContractState,
+            contract_address: ContractAddress,
+            asset: Asset,
+            order_id: u32
+        );
 }
 
 #[starknet::interface]
