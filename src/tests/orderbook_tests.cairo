@@ -178,8 +178,6 @@ fn test_insert_buy_orders_check_sorting() {
     assert(third_order.amount == 1000000000000000, 'third amount wrong');
 }
 
-// TODO: ERC20 transferleride kontrol edilmeli.
-
 #[test]
 #[available_gas(1000000000)]
 fn test_insert_sell_order_check_match() {
@@ -313,3 +311,6 @@ fn test_insert_sell_orders_check_sorting() {
     assert(second_order.amount == 15000000000000, 'second amount wrong');
     assert(third_order.amount == 100000000000000, 'third amount wrong');
 }
+
+// TODO: İlk sell order girilsin sonra buy eklenerek matchlensin. ve balance kontrolü.
+// TODO2: Fee eklensin.
