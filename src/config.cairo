@@ -20,19 +20,19 @@ struct Order { // TODO: cancel order için orderid gerekecek.
     status: OrderStatus // u8 length yeter
 }
 
-const TWO_POW_8: u256 = 0x100;
-const TWO_POW_16: u256 = 0x10000;
-const TWO_POW_32: u256 = 0x100000000;
-const TWO_POW_64: u256 = 0x10000000000000000;
-const TWO_POW_96: u256 = 0x1000000000000000000000000;
-const TWO_POW_224: u256 = 0x100000000000000000000000000000000000000000000000000000000;
-const TWO_POW_240: u256 = 0x1000000000000000000000000000000000000000000000000000000000000;
+const SHIFT_8: u256 = 0x100;
+const SHIFT_16: u256 = 0x10000;
+const SHIFT_32: u256 = 0x100000000;
+const SHIFT_64: u256 = 0x10000000000000000;
+const SHIFT_96: u256 = 0x1000000000000000000000000;
+const SHIFT_224: u256 = 0x100000000000000000000000000000000000000000000000000000000;
+const SHIFT_240: u256 = 0x1000000000000000000000000000000000000000000000000000000000000;
 
-const MASK_8: u256 = 0xFF;
-const MASK_16: u256 = 0xFFFF;
-const MASK_32: u256 = 0xFFFFFFFF;
-const MASK_64: u256 = 0xFFFFFFFFFFFFFFFF;
-const MASK_128: u256 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+const UNSHIFT_8: u256 = 0xFF;
+const UNSHIFT_8_16: u256 = 0xFFFF;
+const UNSHIFT_8_32: u256 = 0xFFFFFFFF;
+const UNSHIFT_8_64: u256 = 0xFFFFFFFFFFFFFFFF;
+const UNSHIFT_8_128: u256 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
 
 fn safe_u32_to_u128(val: u32) -> u128 {
     let val_felt: felt252 = val.into();
@@ -59,24 +59,24 @@ fn safe_status_to_u128(val: OrderStatus) -> u128 {
 }
 
 fn pack_order(order: Order) -> felt252 { // TEST EDİLDİ DOĞRU GİBİ DURUYOR.
-    let mut packed: u256 = safe_u32_to_u128(order.order_id).into(); // u32
-    packed = packed | (u256_from_felt252(safe_u64_to_u128(order.date).into()) * TWO_POW_32);
-    packed = packed | (u256_from_felt252(order.amount.into()) * TWO_POW_96);
-    packed = packed | (u256_from_felt252(safe_u16_to_u128(order.price).into()) * TWO_POW_224);
-    packed = packed | (u256_from_felt252(safe_status_to_u128(order.status).into()) * TWO_POW_240); // KONTROL EDİLMELİ PACK DÜZGÜN MÜ.
+    let mut shifted: u256 = safe_u32_to_u128(order.order_id).into(); // u32
+    shifted = shifted | (u256_from_felt252(safe_u64_to_u128(order.date).into()) * SHIFT_32);
+    shifted = shifted | (u256_from_felt252(order.amount.into()) * SHIFT_96);
+    shifted = shifted | (u256_from_felt252(safe_u16_to_u128(order.price).into()) * SHIFT_224);
+    shifted = shifted | (u256_from_felt252(safe_status_to_u128(order.status).into()) * SHIFT_240); // KONTROL EDİLMELİ PACK DÜZGÜN MÜ.
 
-    packed.try_into().unwrap()
+    shifted.try_into().unwrap()
 }
 
 fn unpack_order(packed_order: felt252) -> Order { // TEST EDİLDİ DOĞRU GİBİ DURUYOR. EN YÜKSEK DEĞERLERLE TEST EDİLMELİ.
     // TODO
-    let packed: u256 = packed_order.into();
+    let unshifted: u256 = packed_order.into();
 
-    let order_id: u32 = (packed & MASK_32).try_into().unwrap();
-    let date: u64 = ((packed / TWO_POW_32) & MASK_64).try_into().unwrap(); // burada libfuncs problemi var
-    let amount: u128 = ((packed / TWO_POW_96) & MASK_128).try_into().unwrap();
-    let price: u16 = ((packed / TWO_POW_224) & MASK_16).try_into().unwrap();
-    let status: felt252 = ((packed / TWO_POW_240) & MASK_8).try_into().unwrap();
+    let order_id: u32 = (unshifted & UNSHIFT_8_32).try_into().unwrap();
+    let date: u64 = ((unshifted / SHIFT_32) & UNSHIFT_8_64).try_into().unwrap(); // burada libfuncs problemi var
+    let amount: u128 = ((unshifted / SHIFT_96) & UNSHIFT_8_128).try_into().unwrap();
+    let price: u16 = ((unshifted / SHIFT_224) & UNSHIFT_8_16).try_into().unwrap();
+    let status: felt252 = ((unshifted / SHIFT_240) & UNSHIFT_8_8).try_into().unwrap();
 
     Order {
         order_id : order_id, 
