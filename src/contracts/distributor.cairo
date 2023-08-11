@@ -144,7 +144,7 @@ mod Distributor {
             let caller = get_caller_address();
             assert(caller == self.operator.read(), 'only operator');
 
-            self.register_token.write(token, true);
+            self.registered_tokens.write(token, true);
         }
 
         fn upgrade_contract(ref self: ContractState, new_class: ClassHash) {

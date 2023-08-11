@@ -29,10 +29,10 @@ const SHIFT_224: u256 = 0x100000000000000000000000000000000000000000000000000000
 const SHIFT_240: u256 = 0x1000000000000000000000000000000000000000000000000000000000000;
 
 const UNSHIFT_8: u256 = 0xFF;
-const UNSHIFT_8_16: u256 = 0xFFFF;
-const UNSHIFT_8_32: u256 = 0xFFFFFFFF;
-const UNSHIFT_8_64: u256 = 0xFFFFFFFFFFFFFFFF;
-const UNSHIFT_8_128: u256 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+const UNSHIFT_16: u256 = 0xFFFF;
+const UNSHIFT_32: u256 = 0xFFFFFFFF;
+const UNSHIFT_64: u256 = 0xFFFFFFFFFFFFFFFF;
+const UNSHIFT_128: u256 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
 
 fn safe_u32_to_u128(val: u32) -> u128 {
     let val_felt: felt252 = val.into();
@@ -72,11 +72,11 @@ fn unpack_order(packed_order: felt252) -> Order { // TEST EDİLDİ DOĞRU GİBİ
     // TODO
     let unshifted: u256 = packed_order.into();
 
-    let order_id: u32 = (unshifted & UNSHIFT_8_32).try_into().unwrap();
-    let date: u64 = ((unshifted / SHIFT_32) & UNSHIFT_8_64).try_into().unwrap(); // burada libfuncs problemi var
-    let amount: u128 = ((unshifted / SHIFT_96) & UNSHIFT_8_128).try_into().unwrap();
-    let price: u16 = ((unshifted / SHIFT_224) & UNSHIFT_8_16).try_into().unwrap();
-    let status: felt252 = ((unshifted / SHIFT_240) & UNSHIFT_8_8).try_into().unwrap();
+    let order_id: u32 = (unshifted & UNSHIFT_32).try_into().unwrap();
+    let date: u64 = ((unshifted / SHIFT_32) & UNSHIFT_64).try_into().unwrap(); // burada libfuncs problemi var
+    let amount: u128 = ((unshifted / SHIFT_96) & UNSHIFT_128).try_into().unwrap();
+    let price: u16 = ((unshifted / SHIFT_224) & UNSHIFT_16).try_into().unwrap();
+    let status: felt252 = ((unshifted / SHIFT_240) & UNSHIFT_8).try_into().unwrap();
 
     Order {
         order_id : order_id, 
