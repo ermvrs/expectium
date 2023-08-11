@@ -1,25 +1,9 @@
 use starknet::{ContractAddress, ClassHash};
-#[starknet::interface]
-trait IDistributor<TContractState> {
-    fn new_distribution(ref self: TContractState, token: ContractAddress, amount: u256); // Distributiona para ekler.
-    fn claim(ref self: TContractState, token: ContractAddress, share_id: u256); // tokenid ye ait token fee yi claim eder.
-    // views
-    fn get_claimable_amount(self: @TContractState, token: ContractAddress, share_id: u256) -> u256;
-    fn total_distribution(self: @TContractState, token: ContractAddress) -> u256;
-    fn total_distribution_per_share(self: @TContractState, token: ContractAddress) -> u256;
-    fn is_claims_available(self: @TContractState) -> bool;
-    // operator
-    fn toggle_claims(ref self: TContractState);
-    fn register_token(ref self: TContractState, token: ContractAddress);
-    fn upgrade_contract(ref self: TContractState, new_class: ClassHash);
-    fn transfer_operator(ref self: TContractState, new_operator: ContractAddress);
-}
 
 #[starknet::contract]
 mod Distributor {
     use starknet::{ContractAddress, get_caller_address, get_contract_address, get_block_timestamp, ClassHash, replace_class_syscall};
-    use expectium::interfaces::{IERC20Dispatcher, IERC20DispatcherTrait, ISharesDispatcher, ISharesDispatcherTrait};
-    use super::IDistributor;
+    use expectium::interfaces::{IERC20Dispatcher, IERC20DispatcherTrait, ISharesDispatcher, ISharesDispatcherTrait, IDistributor};
 
     #[event]
     #[derive(Drop, starknet::Event)]
@@ -159,6 +143,8 @@ mod Distributor {
         fn register_token(ref self: ContractState, token: ContractAddress) {
             let caller = get_caller_address();
             assert(caller == self.operator.read(), 'only operator');
+
+            self.register_token.write(token, true);
         }
 
         fn upgrade_contract(ref self: ContractState, new_class: ClassHash) {

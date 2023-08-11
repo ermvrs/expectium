@@ -83,3 +83,19 @@ trait IFactory<TContractState> {
     fn upgrade_market(self: @TContractState, market_id: u64); // marketi mevcut hashe yükseltir.
     fn transfer_operator(ref self: TContractState, new_operator: ContractAddress);
 }
+
+#[starknet::interface]
+trait IDistributor<TContractState> {
+    fn new_distribution(ref self: TContractState, token: ContractAddress, amount: u256); // Distributiona para ekler.
+    fn claim(ref self: TContractState, token: ContractAddress, share_id: u256); // tokenid ye ait token fee yi claim eder.
+    // views
+    fn get_claimable_amount(self: @TContractState, token: ContractAddress, share_id: u256) -> u256;
+    fn total_distribution(self: @TContractState, token: ContractAddress) -> u256;
+    fn total_distribution_per_share(self: @TContractState, token: ContractAddress) -> u256;
+    fn is_claims_available(self: @TContractState) -> bool;
+    // operator
+    fn toggle_claims(ref self: TContractState);
+    fn register_token(ref self: TContractState, token: ContractAddress);
+    fn upgrade_contract(ref self: TContractState, new_class: ClassHash);
+    fn transfer_operator(ref self: TContractState, new_operator: ContractAddress);
+}

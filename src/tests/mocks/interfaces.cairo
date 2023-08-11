@@ -137,3 +137,9 @@ trait IAccount<TContractState> {
 trait IMockMarketV2<TContractState> {
      fn market_id(self: @TContractState) -> u64;
 }
+
+#[starknet::interface]
+trait IMockShares<TContractState> {
+    fn balance_of(self: @TContractState, account: ContractAddress) -> u256;
+    fn owner_of(self: @TContractState, token_id: u256) -> ContractAddress;
+}

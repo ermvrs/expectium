@@ -7,3 +7,13 @@ Deploy with starkli
 Signer kur : https://book.starkli.rs/signers
 
 starkli ile declare dene. 2.1.0 destekliyormuş.
+
+Testnet deployer
+
+0x00df91b13d50e3935d404ed0497aa2ca345044544623075ae7ce56c432102b3a
+
+pub : 0x1fa6591b441ad866cdfb0aa020170618eb7d7f4d2fafb849a6f367304379800
+priv 0x03ac1aa2bc8e3cb9f8d412ac8f826b87739f49cf8bc6e3fc8fbcbc5652d38ac3
+
+
+deployed account : 0x027efa343f893a1b68919388612c0291e5c1195bd799a4705bbf4b6d23c0eed5

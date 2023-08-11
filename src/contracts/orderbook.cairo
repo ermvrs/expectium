@@ -3,7 +3,9 @@ mod Orderbook {
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address, get_contract_address};
     use expectium::config::{Order, Asset, PlatformFees, FeeType, OrderStatus, StoreFelt252Array, 
             pack_order, unpack_order, safe_u16_to_u128, safe_u32_to_u128};
-    use expectium::interfaces::{IOrderbook, IMarketDispatcher, IMarketDispatcherTrait, IERC20Dispatcher, IERC20DispatcherTrait};
+    use expectium::interfaces::{IOrderbook, IMarketDispatcher, IMarketDispatcherTrait, 
+                                IERC20Dispatcher, IERC20DispatcherTrait, 
+                                IDistributorDispatcher, IDistributorDispatcherTrait};
     use expectium::array::{_sort_orders_descending, _sort_orders_ascending};
     use array::{ArrayTrait, SpanTrait};
     use zeroable::Zeroable;
@@ -29,6 +31,8 @@ mod Orderbook {
         self.operator.write(operator);
         self.market.write(market);
         self.quote_token.write(quote_token);
+
+        // TODO: approve quote token to distributor.
     }
 
     #[external(v0)]
@@ -243,10 +247,14 @@ mod Orderbook {
                                 order.status = OrderStatus::Filled(());
                                 order.amount = 0;
 
-                                _transfer_assets(ref self, Asset::Happens(()), order_owner, u256 { high: 0, low: spent_amount }); // TODO: FEE
-                                // Yeni order girene(Taker), quote gönderelim.
-                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into(); // TODO: FEE
-                                _transfer_quote_token(ref self, taker, quote_amount);
+                                let (net_amount, maker_fee) = _apply_fee(@self, FeeType::Maker(()), u256 { high: 0, low: spent_amount }); // Gönderilecek net miktar ve fee hesaplayalım.
+                                _transfer_assets(ref self, Asset::Happens(()), order_owner, net_amount); // Net miktarı emir sahibine gönderelim (maker)
+                                _transfer_assets(ref self, Asset::Happens(()), self.operator.read(), maker_fee); // Fee miktarını operatore gönderelim
+
+                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into(); // quote_amount hesaplayalım (price * amount)
+                                let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), quote_amount); // emir giren satıcı olduğu için taker fee hesaplayalım
+                                _transfer_quote_token(ref self, taker, net_amount); // net miktarı callera gönderelim.
+                                IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), taker_fee); // kalan taker fee yi distribution registerlayalım.
 
                                 // Orderı geri eklemeye gerek yok zaten tamamlandı.
                                 continue;
@@ -266,9 +274,15 @@ mod Orderbook {
                                     orders_modified.append(pack_order(order)); // güncellenen orderi ekleyelim.
                                 };
 
-                                _transfer_assets(ref self, Asset::Happens(()), order_owner, u256 { high: 0, low: spent_amount }); // TODO: FEE
-                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into(); // TODO: FEE
-                                _transfer_quote_token(ref self, taker, quote_amount);
+                                let (net_amount, maker_fee) = _apply_fee(@self, FeeType::Maker(()), u256 { high: 0, low: spent_amount }); // Satılacak amounttan fee hesaplayalım
+                                _transfer_assets(ref self, Asset::Happens(()), order_owner, net_amount); // net miktarı emir sahibine gönderelim
+                                _transfer_assets(ref self, Asset::Happens(()), self.operator.read(), maker_fee); // assetleri operatore gönderelim fee
+
+                                // Yeni order girene(Taker), quote gönderelim.
+                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into(); // quote hesaplayalım
+                                let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), quote_amount); // fee hesaplayalım taker
+                                _transfer_quote_token(ref self, taker, net_amount); // net miktarı emir girene gönderelim.
+                                IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), taker_fee); // register fee distro
                             };
                         },
                         Option::None(()) => {
@@ -313,10 +327,15 @@ mod Orderbook {
                                 order.status = OrderStatus::Filled(());
                                 order.amount = 0;
 
-                                _transfer_assets(ref self, Asset::Not(()), order_owner, u256 { high: 0, low: spent_amount }); // TODO: FEE
+                                let (net_amount, maker_fee) = _apply_fee(@self, FeeType::Maker(()), u256 { high: 0, low: spent_amount });
+                                _transfer_assets(ref self, Asset::Not(()), order_owner, net_amount);
+                                _transfer_assets(ref self, Asset::Not(()), self.operator.read(), maker_fee); // TODO: Daha sonrasında assetide nft holderlarına dağıtacağız.
+
                                 // Yeni order girene(Taker), quote gönderelim.
                                 let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into(); // TODO: FEE
-                                _transfer_quote_token(ref self, taker, quote_amount);
+                                let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), quote_amount);
+                                _transfer_quote_token(ref self, taker, net_amount);
+                                IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), taker_fee); // register fee distro
 
                                 // Orderı geri eklemeye gerek yok zaten tamamlandı.
                                 continue;
@@ -336,9 +355,15 @@ mod Orderbook {
                                     orders_modified.append(pack_order(order)); // güncellenen orderi ekleyelim.
                                 };
 
-                                _transfer_assets(ref self, Asset::Not(()), order_owner, u256 { high: 0, low: spent_amount }); // TODO: FEE
+                                let (net_amount, maker_fee) = _apply_fee(@self, FeeType::Maker(()), u256 { high: 0, low: spent_amount });
+                                _transfer_assets(ref self, Asset::Not(()), order_owner, net_amount);
+                                _transfer_assets(ref self, Asset::Not(()), self.operator.read(), maker_fee); // TODO: Daha sonrasında assetide nft holderlarına dağıtacağız.
+
+                                // Yeni order girene(Taker), quote gönderelim.
                                 let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into(); // TODO: FEE
-                                _transfer_quote_token(ref self, taker, quote_amount);
+                                let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), quote_amount);
+                                _transfer_quote_token(ref self, taker, net_amount);
+                                IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), taker_fee); // register fee distro
                             };
                         },
                         Option::None(()) => {
@@ -389,15 +414,20 @@ mod Orderbook {
                                 order.status = OrderStatus::Filled(());
                                 order.amount = 0;
 
+
+                                let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), u256 { high: 0, low: spent_amount });
                                 // transfer işlemleri
                                 // 1) Emri girene orderdaki miktar kadar asset gönder
-                                _transfer_assets(ref self, Asset::Happens(()), taker, u256 { high: 0, low: spent_amount });
+                                _transfer_assets(ref self, Asset::Happens(()), taker, net_amount);
+                                _transfer_assets(ref self, Asset::Happens(()), self.operator.read(), taker_fee);
                                 // 2) Emir sahibine quote token gönder.
-
                                 let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into();
+                                let (net_amount, maker_fee) = _apply_fee(@self, FeeType::Maker(()), quote_amount);
+                                
                                 quote_spent += quote_amount;
 
-                                _transfer_quote_token(ref self, order_owner, quote_amount);
+                                _transfer_quote_token(ref self, order_owner, net_amount);
+                                IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), maker_fee);
                                 continue;
                             };
 
@@ -414,12 +444,19 @@ mod Orderbook {
                                     orders_modified.append(pack_order(order));
                                 };
 
-                                _transfer_assets(ref self, Asset::Happens(()), taker, u256 { high: 0, low: spent_amount });
+                                let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), u256 { high: 0, low: spent_amount });
+
+                                _transfer_assets(ref self, Asset::Happens(()), taker, net_amount);
+                                _transfer_assets(ref self, Asset::Happens(()), self.operator.read(), taker_fee);
 
                                 let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into();
+                                let (net_amount, maker_fee) = _apply_fee(@self, FeeType::Maker(()), quote_amount);
+
+                                
                                 quote_spent += quote_amount;
 
-                                _transfer_quote_token(ref self, order_owner, quote_amount);
+                                _transfer_quote_token(ref self, order_owner, net_amount);
+                                IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), maker_fee);
                             };
                         },
                         Option::None(()) => {
@@ -463,14 +500,21 @@ mod Orderbook {
                                 order.amount = 0;
 
                                 // transfer işlemleri
+
+                                let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), u256 { high: 0, low: spent_amount });
+
                                 // 1) Emri girene orderdaki miktar kadar asset gönder
-                                _transfer_assets(ref self, Asset::Not(()), taker, u256 { high: 0, low: spent_amount });
+                                _transfer_assets(ref self, Asset::Not(()), taker, net_amount);
+                                _transfer_assets(ref self, Asset::Not(()), self.operator.read(), taker_fee);
                                 // 2) Emir sahibine quote token gönder.
 
                                 let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into();
+                                let (net_amount, maker_fee) = _apply_fee(@self, FeeType::Maker(()), quote_amount);
+
                                 quote_spent += quote_amount;
 
-                                _transfer_quote_token(ref self, order_owner, quote_amount);
+                                _transfer_quote_token(ref self, order_owner, net_amount);
+                                IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), maker_fee);
                                 continue;
                             };
 
@@ -487,12 +531,18 @@ mod Orderbook {
                                     orders_modified.append(pack_order(order));
                                 };
 
-                                _transfer_assets(ref self, Asset::Not(()), taker, u256 { high: 0, low: spent_amount });
+                                let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), u256 { high: 0, low: spent_amount });
+
+                                _transfer_assets(ref self, Asset::Not(()), taker, net_amount);
+                                _transfer_assets(ref self, Asset::Not(()), self.operator.read(), taker_fee);
 
                                 let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into();
+                                let (net_amount, maker_fee) = _apply_fee(@self, FeeType::Maker(()), quote_amount);
+
                                 quote_spent += quote_amount;
 
-                                _transfer_quote_token(ref self, order_owner, quote_amount);
+                                _transfer_quote_token(ref self, order_owner, net_amount);
+                                IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), maker_fee);
                             };
                         },
                         Option::None(()) => {
