@@ -175,6 +175,6 @@ mod Distributor {
             return 0;
         }
 
-        total_distribution - 1 / 10000
+        (total_distribution - 1) / 10000
     }
 }
