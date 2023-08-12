@@ -81,7 +81,7 @@ fn _merge_and_slice_recursive_descending( // orderları price yüksekten düşü
     } else if unpack_order(*left_arr[left_arr_ix]).price < unpack_order(*right_arr[right_arr_ix]).price {
         (*right_arr[right_arr_ix], left_arr_ix, right_arr_ix + 1)
     } else if unpack_order(*left_arr[left_arr_ix]).date <= unpack_order(*right_arr[right_arr_ix]).date {
-        (*left_arr[left_arr_ix], left_arr_ix + 1, right_arr_ix)
+        (*left_arr[left_arr_ix], left_arr_ix + 1, right_arr_ix) // @audit-issue : oRDER İD İLEDE KONTROL 
     } else {
         (*right_arr[right_arr_ix], left_arr_ix, right_arr_ix + 1)
     };
