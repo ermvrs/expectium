@@ -1,5 +1,5 @@
 use starknet::{ContractAddress, ClassHash};
-use expectium::config::{Asset};
+use expectium::config::{Asset, PlatformFees};
 
 #[starknet::interface]
 trait IOrderbook<TContractState> {
@@ -14,9 +14,12 @@ trait IOrderbook<TContractState> {
     fn get_order_owner(self: @TContractState, order_id: u32) -> ContractAddress;
     fn market(self: @TContractState) -> ContractAddress;
     fn operator(self: @TContractState) -> ContractAddress;
+    fn distributor(self: @TContractState) -> ContractAddress;
 
     // operators
     fn emergency_toggle(ref self: TContractState);
+    fn refresh_distributor_approval(ref self: TContractState);
+    fn set_fees(ref self: TContractState, fees: PlatformFees);
 }
 
 #[starknet::interface]

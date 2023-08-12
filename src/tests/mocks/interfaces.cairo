@@ -131,6 +131,43 @@ trait IAccount<TContractState> {
             asset: Asset,
             order_id: u32
         );
+
+        fn distributor_claim(
+                self: @TContractState,
+                contract_address: ContractAddress,
+                token: ContractAddress,
+                share_id: u256
+        );
+
+        fn distributor_register_token(
+                self: @TContractState,
+                contract_address: ContractAddress,
+                token: ContractAddress
+        );
+
+        fn distributor_toggle_claims(
+                self: @TContractState,
+                contract_address: ContractAddress
+        );
+
+        fn distributor_upgrade_contract(
+                self: @TContractState,
+                contract_address: ContractAddress,
+                new_class: ClassHash
+        );
+
+        fn distributor_transfer_operator(
+                self: @TContractState,
+                contract_address: ContractAddress,
+                new_operator: ContractAddress
+        );
+
+        fn mock_shares_set_owner(
+                self: @TContractState,
+                contract_address: ContractAddress,
+                token_id: u256,
+                owner: ContractAddress
+        );
 }
 
 #[starknet::interface]
@@ -142,4 +179,5 @@ trait IMockMarketV2<TContractState> {
 trait IMockShares<TContractState> {
     fn balance_of(self: @TContractState, account: ContractAddress) -> u256;
     fn owner_of(self: @TContractState, token_id: u256) -> ContractAddress;
+    fn set_owner(ref self: TContractState, token_id: u256, owner: ContractAddress);
 }

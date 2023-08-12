@@ -63,10 +63,13 @@ mod Orderbook {
     }
 
     #[constructor]
-    fn constructor(ref self: ContractState, market: ContractAddress, operator: ContractAddress, quote_token: ContractAddress) {
+    fn constructor(ref self: ContractState, market: ContractAddress, operator: ContractAddress, quote_token: ContractAddress, distributor: ContractAddress) {
         self.operator.write(operator);
         self.market.write(market);
         self.quote_token.write(quote_token);
+        self.distributor.write(distributor);
+
+        IERC20Dispatcher { contract_address: quote_token }.approve(distributor, integer::BoundedInt::max());
 
         // TODO: approve quote token to distributor.
     }
@@ -92,6 +95,10 @@ mod Orderbook {
 
         fn operator(self: @ContractState) -> ContractAddress {
             self.operator.read()
+        }
+
+        fn distributor(self: @ContractState) -> ContractAddress {
+            self.distributor.read()
         }
 
         fn get_order_owner(self: @ContractState, order_id: u32) -> ContractAddress {
@@ -262,6 +269,25 @@ mod Orderbook {
 
             self.is_emergency.write(!self.is_emergency.read())
          }
+
+         fn refresh_distributor_approval(ref self: ContractState) {
+            let caller = get_caller_address();
+            assert(caller == self.operator.read(), 'only operator');
+
+            let distributor = self.distributor.read();
+
+            IERC20Dispatcher { contract_address: self.quote_token.read() }.approve(distributor, integer::BoundedInt::max());
+         }
+
+         fn set_fees(ref self: ContractState, fees: PlatformFees) {
+            let caller = get_caller_address();
+            assert(caller == self.operator.read(), 'only operator');
+
+            assert(fees.taker <= 1000_u32, 'taker too much');
+            assert(fees.maker <= 1000_u32, 'maker too much'); // Max fee %10
+
+            self.fees.write(fees);
+         }
     }
 
     fn _match_incoming_sell_order(ref self: ContractState, taker: ContractAddress, asset: Asset, amount: u128, price: u16) -> u128 {
@@ -305,8 +331,9 @@ mod Orderbook {
                                 let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into(); // quote_amount hesaplayalım (price * amount)
                                 let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), quote_amount); // emir giren satıcı olduğu için taker fee hesaplayalım
                                 _transfer_quote_token(ref self, taker, net_amount); // net miktarı callera gönderelim.
-                                IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), taker_fee); // kalan taker fee yi distribution registerlayalım.
-                                
+                                //IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), taker_fee); // kalan taker fee yi distribution registerlayalım.
+                                _distribute_fees(@self, taker_fee);
+
                                 self.emit(Event::Matched(
                                     Matched { maker_order_id: order.order_id, maker: order_owner, 
                                             asset: Asset::Happens(()), matched_amount:  u256 { high: 0, low : spent_amount},
@@ -338,8 +365,9 @@ mod Orderbook {
                                 let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into(); // quote hesaplayalım
                                 let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), quote_amount); // fee hesaplayalım taker
                                 _transfer_quote_token(ref self, taker, net_amount); // net miktarı emir girene gönderelim.
-                                IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), taker_fee); // register fee distro
-                            
+                                // IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), taker_fee); // register fee distro
+                                _distribute_fees(@self, taker_fee);
+
                                 self.emit(Event::Matched(
                                     Matched { maker_order_id: order.order_id, maker: order_owner, 
                                             asset: Asset::Happens(()), matched_amount:  u256 { high: 0, low : spent_amount},
@@ -397,7 +425,8 @@ mod Orderbook {
                                 let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into(); // TODO: FEE
                                 let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), quote_amount);
                                 _transfer_quote_token(ref self, taker, net_amount);
-                                IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), taker_fee); // register fee distro
+                                //IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), taker_fee); // register fee distro
+                                _distribute_fees(@self, taker_fee);
 
                                 self.emit(Event::Matched(
                                     Matched { maker_order_id: order.order_id, maker: order_owner, 
@@ -430,8 +459,9 @@ mod Orderbook {
                                 let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into(); // TODO: FEE
                                 let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), quote_amount);
                                 _transfer_quote_token(ref self, taker, net_amount);
-                                IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), taker_fee); // register fee distro
-                            
+                                // IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), taker_fee); // register fee distro
+                                _distribute_fees(@self, taker_fee);
+
                                 self.emit(Event::Matched(
                                     Matched { maker_order_id: order.order_id, maker: order_owner, 
                                             asset: Asset::Not(()), matched_amount:  u256 { high: 0, low : spent_amount},
@@ -500,8 +530,9 @@ mod Orderbook {
                                 quote_spent += quote_amount;
 
                                 _transfer_quote_token(ref self, order_owner, net_amount);
-                                IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), maker_fee);
-                                
+                                // IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), maker_fee);
+                                _distribute_fees(@self, maker_fee);
+
                                 self.emit(Event::Matched(
                                     Matched { maker_order_id: order.order_id, maker: order_owner, 
                                             asset: Asset::Happens(()), matched_amount:  u256 { high: 0, low : spent_amount},
@@ -536,8 +567,9 @@ mod Orderbook {
                                 quote_spent += quote_amount;
 
                                 _transfer_quote_token(ref self, order_owner, net_amount);
-                                IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), maker_fee);
-                            
+                                //IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), maker_fee);
+                                _distribute_fees(@self, maker_fee);
+
                                 self.emit(Event::Matched(
                                     Matched { maker_order_id: order.order_id, maker: order_owner, 
                                             asset: Asset::Happens(()), matched_amount:  u256 { high: 0, low : spent_amount},
@@ -600,8 +632,9 @@ mod Orderbook {
                                 quote_spent += quote_amount;
 
                                 _transfer_quote_token(ref self, order_owner, net_amount);
-                                IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), maker_fee);
-                                
+                                // IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), maker_fee);
+                                _distribute_fees(@self, maker_fee);
+
                                 self.emit(Event::Matched(
                                     Matched { maker_order_id: order.order_id, maker: order_owner, 
                                             asset: Asset::Not(()), matched_amount:  u256 { high: 0, low : spent_amount},
@@ -634,8 +667,9 @@ mod Orderbook {
                                 quote_spent += quote_amount;
 
                                 _transfer_quote_token(ref self, order_owner, net_amount);
-                                IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), maker_fee);
-                            
+                                // IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), maker_fee);
+                                _distribute_fees(@self, maker_fee);
+
                                 self.emit(Event::Matched(
                                     Matched { maker_order_id: order.order_id, maker: order_owner, 
                                             asset: Asset::Not(()), matched_amount:  u256 { high: 0, low : spent_amount},
@@ -821,6 +855,12 @@ mod Orderbook {
             _sort_orders_ascending(orders)
         } else {
             _sort_orders_descending(orders)
+        }
+    }
+
+    fn _distribute_fees(self: @ContractState, amount: u256) {
+        if(amount > 0) {
+            IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), amount);
         }
     }
 

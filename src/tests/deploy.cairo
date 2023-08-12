@@ -49,11 +49,11 @@ fn deploy_factory(operator: ContractAddress, market_hash: ClassHash) -> IFactory
     IFactoryDispatcher { contract_address }
 }
 
-fn deploy_orderbook(market: ContractAddress, operator: ContractAddress, quote: ContractAddress) -> IOrderbookDispatcher {
+fn deploy_orderbook(market: ContractAddress, operator: ContractAddress, quote: ContractAddress, distributor: ContractAddress) -> IOrderbookDispatcher {
     let (contract_address, _) = deploy_syscall(
         Orderbook::TEST_CLASS_HASH.try_into().unwrap(),
         0,
-        array![market.into(), operator.into(), quote.into()].span(),
+        array![market.into(), operator.into(), quote.into(), distributor.into()].span(),
         false
     ).unwrap();
 

@@ -1,8 +1,9 @@
 use starknet::{ContractAddress, contract_address_const, ClassHash};
-use expectium::tests::mocks::interfaces::{IAccountDispatcher, IAccountDispatcherTrait};
+use expectium::tests::mocks::interfaces::{IAccountDispatcher, IAccountDispatcherTrait, IMockSharesDispatcher, IMockSharesDispatcherTrait};
 use expectium::interfaces::{IFactoryDispatcher, IFactoryDispatcherTrait, IMarketDispatcher, 
                             IMarketDispatcherTrait, IERC20Dispatcher, IERC20DispatcherTrait,
-                            IOrderbookDispatcher, IOrderbookDispatcherTrait};
+                            IOrderbookDispatcher, IOrderbookDispatcherTrait,
+                            IDistributorDispatcher, ISharesDispatcherTrait};
 use expectium::config::{Asset, Order, unpack_order, pack_order};
 use debug::PrintTrait;
 use array::ArrayTrait;
@@ -38,13 +39,18 @@ struct Setup {
     collateral: IERC20Dispatcher,
     market: IMarketDispatcher,
     factory: IFactoryDispatcher,
-    orderbook: IOrderbookDispatcher
+    orderbook: IOrderbookDispatcher,
+    distributor: IDistributorDispatcher,
+    shares: IMockSharesDispatcher
 }
 
 fn setup_with_mergeshares() -> Setup {
     let operator = deploy::deploy_account();
     let alice = deploy::deploy_account();
     let bob = deploy::deploy_account();
+
+    let mock_shares = deploy::deploy_mock_shares();
+    let distributor = deploy::deploy_distributor(operator.contract_address, mock_shares.contract_address);
 
     let collateral = deploy::deploy_erc20(
         'TEST USDC',
@@ -54,6 +60,10 @@ fn setup_with_mergeshares() -> Setup {
         operator.contract_address
     );
 
+    // register token to distribution.
+
+    operator.distributor_register_token(distributor.contract_address, collateral.contract_address);
+
     operator.erc20_transfer(collateral.contract_address, alice.contract_address, 5000000000000000000);
     operator.erc20_transfer(collateral.contract_address, bob.contract_address, 1000000000000000000);
 
@@ -62,7 +72,7 @@ fn setup_with_mergeshares() -> Setup {
     let factory = deploy::deploy_factory(operator.contract_address, market_classhash);
     let (_, market) = operator.factory_create_market(factory.contract_address, operator.contract_address, collateral.contract_address);
 
-    let orderbook = deploy::deploy_orderbook(market, operator.contract_address, collateral.contract_address);
+    let orderbook = deploy::deploy_orderbook(market, operator.contract_address, collateral.contract_address, distributor.contract_address);
 
     alice.erc20_approve(collateral.contract_address, market, 1000000000000000000); // 1 ether
     alice.market_mint_shares(market, 1000000000000000000);
@@ -70,7 +80,7 @@ fn setup_with_mergeshares() -> Setup {
     bob.erc20_approve(collateral.contract_address, market, 100000000000000000); // 0.1 ether
     bob.market_mint_shares(market, 100000000000000000);
 
-    Setup { operator, alice, bob, collateral, market: IMarketDispatcher { contract_address: market }, factory, orderbook }
+    Setup { operator, alice, bob, collateral, market: IMarketDispatcher { contract_address: market }, factory, orderbook, distributor, shares: mock_shares }
 }
 
 #[test]
@@ -83,6 +93,8 @@ fn test_initial_values() {
     let op = book.operator();
     assert(op == setup.operator.contract_address, 'operator set wrong');
     assert(book.market() == setup.market.contract_address, 'market set wrong');
+    assert(book.distributor() == setup.distributor.contract_address, 'distributor wrong');
+    // TODO: check approval to distribution contract
 }
 
 #[test]
@@ -312,5 +324,4 @@ fn test_insert_sell_orders_check_sorting() {
     assert(third_order.amount == 100000000000000, 'third amount wrong');
 }
 
-// TODO: İlk sell order girilsin sonra buy eklenerek matchlensin. ve balance kontrolü.
-// TODO2: Fee eklensin.
+// TODO: Fee set edilerek trade test edilsin.

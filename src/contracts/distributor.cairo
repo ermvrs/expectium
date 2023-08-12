@@ -50,8 +50,8 @@ mod Distributor {
         operator: ContractAddress,
         shares: ContractAddress
     ) {
-        self.shares.write(shares);
         self.operator.write(operator);
+        self.shares.write(shares);
     }
 
     #[external(v0)]

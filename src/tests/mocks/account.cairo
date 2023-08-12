@@ -5,8 +5,9 @@ mod Account {
     use expectium::interfaces::{IERC20Dispatcher, IERC20DispatcherTrait, 
             IFactoryDispatcher, IFactoryDispatcherTrait,
             IMarketDispatcher, IMarketDispatcherTrait,
-            IOrderbookDispatcher, IOrderbookDispatcherTrait};
-    use expectium::tests::mocks::interfaces::{IAccount};
+            IOrderbookDispatcher, IOrderbookDispatcherTrait,
+            IDistributorDispatcher, IDistributorDispatcherTrait};
+    use expectium::tests::mocks::interfaces::{IAccount, IMockSharesDispatcher, IMockSharesDispatcherTrait};
 
     #[storage]
     struct Storage {}
@@ -179,6 +180,55 @@ mod Account {
             order_id: u32
         ) {
             IOrderbookDispatcher { contract_address }.cancel_sell_order(asset, order_id);
+        }
+
+        fn distributor_claim(
+                self: @ContractState,
+                contract_address: ContractAddress,
+                token: ContractAddress,
+                share_id: u256
+        ) {
+            IDistributorDispatcher { contract_address }.claim(token, share_id)
+        }
+
+        fn distributor_register_token(
+                self: @ContractState,
+                contract_address: ContractAddress,
+                token: ContractAddress
+        ) {
+            IDistributorDispatcher { contract_address }.register_token(token)
+        }
+
+        fn distributor_toggle_claims(
+                self: @ContractState,
+                contract_address: ContractAddress
+        ) {
+            IDistributorDispatcher { contract_address }.toggle_claims()
+        }
+
+        fn distributor_upgrade_contract(
+                self: @ContractState,
+                contract_address: ContractAddress,
+                new_class: ClassHash
+        ) {
+            IDistributorDispatcher { contract_address }.upgrade_contract(new_class)
+        }
+
+        fn distributor_transfer_operator(
+                self: @ContractState,
+                contract_address: ContractAddress,
+                new_operator: ContractAddress
+        ) {
+            IDistributorDispatcher { contract_address }.transfer_operator(new_operator)
+        }
+
+        fn mock_shares_set_owner(
+                self: @ContractState,
+                contract_address: ContractAddress,
+                token_id: u256,
+                owner: ContractAddress
+        ) {
+            IMockSharesDispatcher { contract_address }.set_owner(token_id, owner)
         }
     }
 }
