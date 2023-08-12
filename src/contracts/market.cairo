@@ -1,9 +1,72 @@
 #[starknet::contract]
 mod Market {
     use expectium::config::{Asset};
-    use starknet::{ContractAddress, get_caller_address, get_contract_address, ClassHash, replace_class_syscall};
+    use starknet::{ContractAddress, get_caller_address, get_contract_address, 
+                    ClassHash, replace_class_syscall, get_block_timestamp};
     use expectium::interfaces::{IERC20Dispatcher, IERC20DispatcherTrait, IMarket};
     use traits::{Into, TryInto};
+
+    #[event]
+    #[derive(Drop, starknet::Event)]
+    enum Event {
+        SharesMinted: SharesMinted,
+        SharesMerged: SharesMerged,
+        SharesConverted: SharesConverted,
+        MarketResolved: MarketResolved,
+        Approved: Approved,
+        ApprovalRevoked: ApprovalRevoked,
+        Transfer: Transfer
+    }
+
+    #[derive(Drop, PartialEq, starknet::Event)]
+    struct Approved {
+        owner: ContractAddress,
+        spender: ContractAddress
+    }
+
+    #[derive(Drop, PartialEq, starknet::Event)]
+    struct ApprovalRevoked {
+        owner: ContractAddress,
+        spender: ContractAddress
+    }
+
+    #[derive(Drop, PartialEq, starknet::Event)]
+    struct Transfer {
+        from: ContractAddress,
+        to: ContractAddress,
+        asset: Asset,
+        amount: u256
+    }
+
+    #[derive(Drop, PartialEq, starknet::Event)]
+    struct SharesMinted {
+        caller: ContractAddress,
+        amount: u256,
+        date: u64
+    }
+
+    #[derive(Drop, PartialEq, starknet::Event)]
+    struct SharesMerged {
+        caller: ContractAddress,
+        amount: u256,
+        date: u64
+    }
+
+    #[derive(Drop, PartialEq, starknet::Event)]
+    struct SharesConverted {
+        caller: ContractAddress,
+        asset: Asset,
+        amount: u256,
+        collateral_received: u256,
+        date: u64
+    }
+
+    #[derive(Drop, PartialEq, starknet::Event)]
+    struct MarketResolved {
+        resolver: ContractAddress,
+        happens: u16,
+        not: u16
+    }
 
     #[storage]
     struct Storage {
@@ -80,6 +143,10 @@ mod Market {
 
             self.supplies.write(Asset::Happens(()), self.supplies.read(Asset::Happens(())) + invest);
             self.supplies.write(Asset::Not(()), self.supplies.read(Asset::Not(())) + invest);
+        
+            self.emit(Event::SharesMinted(
+                SharesMinted { caller: caller, amount: invest, date: get_block_timestamp() }
+            ));
         }
 
         fn merge_shares(ref self: ContractState, shares: u256) {
@@ -95,6 +162,10 @@ mod Market {
             self.supplies.write(Asset::Not(()), self.supplies.read(Asset::Not(())) - shares);
 
             _transfer_collateral(ref self, caller, shares);
+        
+            self.emit(Event::SharesMerged(
+                SharesMerged { caller: caller, amount: shares, date: get_block_timestamp() }
+            ));
         }
 
         fn convert_shares(ref self: ContractState, asset: Asset, amount: u256) {
@@ -111,6 +182,10 @@ mod Market {
             assert(collateral_turnback <= amount, 'turnback higher'); // turnback amounttan fazla olamaz.
 
             _transfer_collateral(ref self, caller, collateral_turnback);
+
+            self.emit(Event::SharesConverted(
+                SharesConverted { caller: caller, asset: asset, amount: amount, collateral_received: collateral_turnback, date: get_block_timestamp() }
+            ));
         }
         
         // Only Resolver
@@ -122,6 +197,10 @@ mod Market {
 
             self.resolve_ratio.write(Asset::Happens(()), happens);
             self.resolve_ratio.write(Asset::Not(()), not);
+
+            self.emit(Event::MarketResolved(
+                MarketResolved { resolver: caller, happens: happens, not: not }
+            ));
         }
 
         fn upgrade_market(ref self: ContractState, new_class: ClassHash) {
@@ -134,12 +213,16 @@ mod Market {
             let caller = get_caller_address();
 
             self.allowances.write((caller, spender), true);
+
+            self.emit(Event::Approved(Approved { owner: caller, spender: spender }));
         }
 
         fn revoke_approval(ref self: ContractState, spender: ContractAddress) {
             let caller = get_caller_address();
 
             self.allowances.write((caller, spender), false);
+
+            self.emit(Event::ApprovalRevoked(ApprovalRevoked { owner: caller, spender: spender }));
         }
 
         fn transfer_from(ref self: ContractState, from: ContractAddress, to: ContractAddress, asset: Asset, amount: u256) {
@@ -151,6 +234,8 @@ mod Market {
 
             self.balances.write((asset, from), owner_balance - amount);
             self.balances.write((asset, to), self.balances.read((asset, to)) + amount);
+        
+            self.emit(Event::Transfer(Transfer { from: from, to: to, asset: asset, amount: amount}));
         }
 
         fn transfer(ref self: ContractState, to: ContractAddress, asset: Asset, amount: u256) {
@@ -161,6 +246,8 @@ mod Market {
 
             self.balances.write((asset, caller), current_balance - amount);
             self.balances.write((asset, to), self.balances.read((asset, to)) + amount);
+        
+            self.emit(Event::Transfer(Transfer { from: caller, to: to, asset: asset, amount: amount}));
         }
     }
 

@@ -80,7 +80,7 @@ trait IFactory<TContractState> {
     // operators
     fn change_current_classhash(ref self: TContractState, new_hash: ClassHash);
     fn upgrade_factory(ref self: TContractState, new_hash: ClassHash);
-    fn upgrade_market(self: @TContractState, market_id: u64); // marketi mevcut hashe yükseltir.
+    fn upgrade_market(ref self: TContractState, market_id: u64); // marketi mevcut hashe yükseltir.
     fn transfer_operator(ref self: TContractState, new_operator: ContractAddress);
 }
 

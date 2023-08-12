@@ -6,6 +6,27 @@ mod Factory {
     use array::{ArrayTrait, SpanTrait};
     use traits::Into;
 
+    #[event]
+    #[derive(Drop, starknet::Event)]
+    enum Event {
+        MarketCreated: MarketCreated,
+        MarketUpgraded: MarketUpgraded
+    }
+
+    #[derive(Drop, PartialEq, starknet::Event)]
+    struct MarketCreated {
+        creator: ContractAddress,
+        id: u64,
+        resolver: ContractAddress,
+        address: ContractAddress
+    }
+
+    #[derive(Drop, PartialEq, starknet::Event)]
+    struct MarketUpgraded {
+        operator: ContractAddress,
+        id: u64
+    }
+
     #[storage]
     struct Storage {
         markets: LegacyMap<u64, ContractAddress>,
@@ -40,6 +61,10 @@ mod Factory {
             self.markets.write(current_id, deployed_address);
             self.is_market.write(deployed_address, true);
 
+            self.emit(Event::MarketCreated(
+                MarketCreated { creator: get_caller_address(), id: current_id, resolver: resolver, address: deployed_address }
+            ));
+
             (current_id, deployed_address)
         }
 
@@ -71,8 +96,8 @@ mod Factory {
             replace_class_syscall(new_hash);
         }
 
-        fn upgrade_market(self: @ContractState, market_id: u64) {
-            assert_only_operator(self);
+        fn upgrade_market(ref self: ContractState, market_id: u64) {
+            assert_only_operator(@self);
 
             let latest_hash = self.current_class.read();
 
@@ -81,6 +106,10 @@ mod Factory {
             assert(market.is_non_zero(), 'market zero');
 
             IMarketDispatcher{ contract_address: market }.upgrade_market(latest_hash);
+
+            self.emit(Event::MarketUpgraded(
+                MarketUpgraded { operator: get_caller_address(), id: market_id }
+            ));
         }
 
         fn transfer_operator(ref self: ContractState, new_operator: ContractAddress) {
