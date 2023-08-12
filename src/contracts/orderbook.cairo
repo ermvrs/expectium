@@ -12,6 +12,42 @@ mod Orderbook {
     use traits::{Into, TryInto};
     use clone::Clone;
 
+    #[event]
+    #[derive(Drop, starknet::Event)]
+    enum Event {
+        OrderInserted: OrderInserted,
+        Matched: Matched,
+        Cancelled: Cancelled
+    }
+
+    #[derive(Drop, PartialEq, starknet::Event)]
+    struct OrderInserted {
+        maker: ContractAddress,
+        asset: Asset,
+        side: u8,
+        amount: u256,
+        price: u16,
+        id: u32,
+    }
+
+    #[derive(Drop, PartialEq, starknet::Event)]
+    struct Matched {
+        maker_order_id: u32,
+        maker: ContractAddress,
+        asset: Asset,
+        matched_amount: u256,
+        price: u16,
+        taker: ContractAddress,
+        taker_side: u8
+    }
+
+    #[derive(Drop, PartialEq, starknet::Event)]
+    struct Cancelled {
+        id: u32,
+        canceller: ContractAddress,
+    }
+
+
     #[storage]
     struct Storage {
         market: ContractAddress, // connected market address
@@ -123,6 +159,9 @@ mod Orderbook {
                 }
             };
 
+            self.emit(Event::OrderInserted(
+                OrderInserted { maker: caller, asset: asset, side:0_u8, amount: u256 { high: 0, low: rest_amount }, price: price, id: order_id}
+            ));
             return order_id;
         }
 
@@ -177,6 +216,10 @@ mod Orderbook {
                 }
             };
 
+            self.emit(Event::OrderInserted(
+                OrderInserted { maker: caller, asset: asset, side:1_u8, amount: u256 { high: 0, low: amount_left }, price: price, id: order_id}
+            ));
+
             return order_id;
         }
 
@@ -189,7 +232,11 @@ mod Orderbook {
 
             assert(order_owner == caller, 'owner wrong');
 
-            _cancel_buy_order(ref self, order_owner, asset, order_id)
+            _cancel_buy_order(ref self, order_owner, asset, order_id);
+
+            self.emit(Event::Cancelled(
+                Cancelled { id: order_id, canceller: caller }
+            ));
          }
 
          fn cancel_sell_order(ref self: ContractState, asset: Asset, order_id: u32) {
@@ -202,7 +249,11 @@ mod Orderbook {
             // Order varmı kontrol etmeye gerek yok zaten caller ile kontrol ettik.
             assert(order_owner == caller, 'owner wrong');
 
-            _cancel_sell_order(ref self, order_owner, asset, order_id)
+            _cancel_sell_order(ref self, order_owner, asset, order_id);
+
+            self.emit(Event::Cancelled(
+                Cancelled { id: order_id, canceller: caller }
+            ));
          }
 
          fn emergency_toggle(ref self: ContractState) {
@@ -255,7 +306,12 @@ mod Orderbook {
                                 let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), quote_amount); // emir giren satıcı olduğu için taker fee hesaplayalım
                                 _transfer_quote_token(ref self, taker, net_amount); // net miktarı callera gönderelim.
                                 IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), taker_fee); // kalan taker fee yi distribution registerlayalım.
-
+                                
+                                self.emit(Event::Matched(
+                                    Matched { maker_order_id: order.order_id, maker: order_owner, 
+                                            asset: Asset::Happens(()), matched_amount:  u256 { high: 0, low : spent_amount},
+                                            price: order.price, taker: taker, taker_side: 1_u8}
+                                ));
                                 // Orderı geri eklemeye gerek yok zaten tamamlandı.
                                 continue;
                             };
@@ -283,6 +339,12 @@ mod Orderbook {
                                 let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), quote_amount); // fee hesaplayalım taker
                                 _transfer_quote_token(ref self, taker, net_amount); // net miktarı emir girene gönderelim.
                                 IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), taker_fee); // register fee distro
+                            
+                                self.emit(Event::Matched(
+                                    Matched { maker_order_id: order.order_id, maker: order_owner, 
+                                            asset: Asset::Happens(()), matched_amount:  u256 { high: 0, low : spent_amount},
+                                            price: order.price, taker: taker, taker_side: 1_u8}
+                                ));
                             };
                         },
                         Option::None(()) => {
@@ -337,6 +399,11 @@ mod Orderbook {
                                 _transfer_quote_token(ref self, taker, net_amount);
                                 IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), taker_fee); // register fee distro
 
+                                self.emit(Event::Matched(
+                                    Matched { maker_order_id: order.order_id, maker: order_owner, 
+                                            asset: Asset::Not(()), matched_amount:  u256 { high: 0, low : spent_amount},
+                                            price: order.price, taker: taker, taker_side: 1_u8}
+                                ));
                                 // Orderı geri eklemeye gerek yok zaten tamamlandı.
                                 continue;
                             };
@@ -364,6 +431,12 @@ mod Orderbook {
                                 let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), quote_amount);
                                 _transfer_quote_token(ref self, taker, net_amount);
                                 IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), taker_fee); // register fee distro
+                            
+                                self.emit(Event::Matched(
+                                    Matched { maker_order_id: order.order_id, maker: order_owner, 
+                                            asset: Asset::Not(()), matched_amount:  u256 { high: 0, low : spent_amount},
+                                            price: order.price, taker: taker, taker_side: 1_u8}
+                                ));
                             };
                         },
                         Option::None(()) => {
@@ -428,6 +501,13 @@ mod Orderbook {
 
                                 _transfer_quote_token(ref self, order_owner, net_amount);
                                 IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), maker_fee);
+                                
+                                self.emit(Event::Matched(
+                                    Matched { maker_order_id: order.order_id, maker: order_owner, 
+                                            asset: Asset::Happens(()), matched_amount:  u256 { high: 0, low : spent_amount},
+                                            price: order.price, taker: taker, taker_side: 0_u8}
+                                ));
+
                                 continue;
                             };
 
@@ -457,6 +537,12 @@ mod Orderbook {
 
                                 _transfer_quote_token(ref self, order_owner, net_amount);
                                 IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), maker_fee);
+                            
+                                self.emit(Event::Matched(
+                                    Matched { maker_order_id: order.order_id, maker: order_owner, 
+                                            asset: Asset::Happens(()), matched_amount:  u256 { high: 0, low : spent_amount},
+                                            price: order.price, taker: taker, taker_side: 0_u8}
+                                ));
                             };
                         },
                         Option::None(()) => {
@@ -515,6 +601,12 @@ mod Orderbook {
 
                                 _transfer_quote_token(ref self, order_owner, net_amount);
                                 IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), maker_fee);
+                                
+                                self.emit(Event::Matched(
+                                    Matched { maker_order_id: order.order_id, maker: order_owner, 
+                                            asset: Asset::Not(()), matched_amount:  u256 { high: 0, low : spent_amount},
+                                            price: order.price, taker: taker, taker_side: 0_u8}
+                                ));
                                 continue;
                             };
 
@@ -543,6 +635,12 @@ mod Orderbook {
 
                                 _transfer_quote_token(ref self, order_owner, net_amount);
                                 IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), maker_fee);
+                            
+                                self.emit(Event::Matched(
+                                    Matched { maker_order_id: order.order_id, maker: order_owner, 
+                                            asset: Asset::Not(()), matched_amount:  u256 { high: 0, low : spent_amount},
+                                            price: order.price, taker: taker, taker_side: 0_u8}
+                                ));
                             };
                         },
                         Option::None(()) => {
