@@ -182,6 +182,14 @@ mod Account {
             IOrderbookDispatcher { contract_address }.cancel_sell_order(asset, order_id);
         }
 
+        fn orderbook_set_fee(
+            self: @ContractState,
+            contract_address: ContractAddress,
+            fees: expectium::config::PlatformFees,
+        ) {
+            IOrderbookDispatcher { contract_address }.set_fees(fees);
+        }
+
         fn distributor_new_distribution(
                 self: @ContractState,
                 contract_address: ContractAddress,

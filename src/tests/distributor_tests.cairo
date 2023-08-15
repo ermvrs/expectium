@@ -18,8 +18,6 @@ struct Setup {
 }
 
 fn setup() -> Setup {
-    // TODO
-
     let operator = deploy::deploy_account();
     let alice = deploy::deploy_account();
     let bob = deploy::deploy_account();

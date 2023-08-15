@@ -132,6 +132,12 @@ trait IAccount<TContractState> {
             order_id: u32
         );
 
+        fn orderbook_set_fee(
+            self: @TContractState,
+            contract_address: ContractAddress,
+            fees: expectium::config::PlatformFees,
+        );
+
         fn distributor_new_distribution(
                 self: @TContractState,
                 contract_address: ContractAddress,

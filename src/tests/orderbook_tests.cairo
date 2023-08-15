@@ -83,6 +83,17 @@ fn setup_with_mergeshares() -> Setup {
     Setup { operator, alice, bob, collateral, market: IMarketDispatcher { contract_address: market }, factory, orderbook, distributor, shares: mock_shares }
 }
 
+fn setup_with_shares_merged_and_fee_set() -> Setup {
+    let setup = setup_with_mergeshares();
+
+    let operator = setup.operator;
+
+    let fees = expectium::config::PlatformFees { maker: 300, taker: 500 }; // taker %5, maker % 3
+    operator.orderbook_set_fee(book.contract_address, fees);
+
+    setup
+}
+
 #[test]
 #[available_gas(1000000000)]
 fn test_initial_values() {
@@ -94,7 +105,37 @@ fn test_initial_values() {
     assert(op == setup.operator.contract_address, 'operator set wrong');
     assert(book.market() == setup.market.contract_address, 'market set wrong');
     assert(book.distributor() == setup.distributor.contract_address, 'distributor wrong');
-    // TODO: check approval to distribution contract
+
+    let collateral = setup.collateral;
+
+    let allowance = collateral.allowance(book.contract_address, setup.distributor.contract_address);
+    assert(allowance == integer::BoundedInt::max(), 'allowance wrong');
+}
+
+#[test]
+#[available_gas(1000000000)]
+#[should_panic(expected: ('taker too much', 'ENTRYPOINT_FAILED', 'ENTRYPOINT_FAILED',))]
+fn test_set_fee_taker_high() {
+    let setup = setup_with_mergeshares();
+
+    let book = setup.orderbook;
+    let operator = setup.operator;
+
+    let fees = expectium::config::PlatformFees { maker: 0, taker: 2000 };
+    operator.orderbook_set_fee(book.contract_address, fees);
+}
+
+#[test]
+#[available_gas(1000000000)]
+#[should_panic(expected: ('maker too much', 'ENTRYPOINT_FAILED', 'ENTRYPOINT_FAILED',))]
+fn test_set_fee_maker_high() {
+    let setup = setup_with_mergeshares();
+
+    let book = setup.orderbook;
+    let operator = setup.operator;
+
+    let fees = expectium::config::PlatformFees { maker: 1001, taker: 0 };
+    operator.orderbook_set_fee(book.contract_address, fees);
 }
 
 #[test]
@@ -323,5 +364,12 @@ fn test_insert_sell_orders_check_sorting() {
     assert(second_order.amount == 15000000000000, 'second amount wrong');
     assert(third_order.amount == 100000000000000, 'third amount wrong');
 }
-
 // TODO: Fee set edilerek trade test edilsin.
+// TODO: Aynı emir birden fazla eşleşme.
+// Birden fazla emir aynı txde eşleşmesi.
+#[test]
+#[available_gas(1000000000)]
+fn test_trade_with_fees() {
+    let setup = setup_with_shares_merged_and_fee_set();
+    // Todo
+}
