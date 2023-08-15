@@ -132,6 +132,13 @@ trait IAccount<TContractState> {
             order_id: u32
         );
 
+        fn distributor_new_distribution(
+                self: @TContractState,
+                contract_address: ContractAddress,
+                token: ContractAddress,
+                amount: u256
+        );
+
         fn distributor_claim(
                 self: @TContractState,
                 contract_address: ContractAddress,

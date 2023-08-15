@@ -3,6 +3,7 @@ mod mocks;
 mod factory_tests;
 mod market_tests;
 mod orderbook_tests;
+mod distributor_tests;
 
 use traits::{Into, TryInto};
 use debug::PrintTrait;

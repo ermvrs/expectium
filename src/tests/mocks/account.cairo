@@ -182,6 +182,15 @@ mod Account {
             IOrderbookDispatcher { contract_address }.cancel_sell_order(asset, order_id);
         }
 
+        fn distributor_new_distribution(
+                self: @ContractState,
+                contract_address: ContractAddress,
+                token: ContractAddress,
+                amount: u256
+        ) {
+            IDistributorDispatcher { contract_address }.new_distribution(token, amount)
+        }
+
         fn distributor_claim(
                 self: @ContractState,
                 contract_address: ContractAddress,

@@ -96,6 +96,7 @@ trait IDistributor<TContractState> {
     fn total_distribution(self: @TContractState, token: ContractAddress) -> u256;
     fn total_distribution_per_share(self: @TContractState, token: ContractAddress) -> u256;
     fn is_claims_available(self: @TContractState) -> bool;
+    fn shares(self: @TContractState) -> ContractAddress;
     // operator
     fn toggle_claims(ref self: TContractState);
     fn register_token(ref self: TContractState, token: ContractAddress);

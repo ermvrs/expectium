@@ -78,6 +78,10 @@ mod Distributor {
             self.available.read()
         }
 
+        fn shares(self: @ContractState) -> ContractAddress {
+            self.shares.read()
+        }
+
         fn new_distribution(ref self: ContractState, token: ContractAddress, amount: u256) {
             assert(self.registered_tokens.read(token), 'token is not registered');
             assert(amount > 0, 'amount too low');
@@ -103,6 +107,7 @@ mod Distributor {
 
         fn claim(ref self: ContractState, token: ContractAddress, share_id: u256) {
             assert(self.registered_tokens.read(token), 'token is not registered');
+            assert(self.available.read(), 'claims not available');
 
             assert(share_id <= 10000, 'share id wrong');
             let owner: ContractAddress = ISharesDispatcher { contract_address: self.shares.read() }.owner_of(share_id);
@@ -115,11 +120,11 @@ mod Distributor {
 
             let total_distribution = _total_distribution_per_share(@self, token);
 
-            assert(total_distribution >= 0, 'no claimable');
+            assert(total_distribution > 0, 'no claimable');
 
             let net_amount = total_distribution - already_claimed;
 
-            assert(net_amount >= 0, 'already claimed');
+            assert(net_amount > 0, 'already claimed');
 
             self.claims.write(share_id, total_distribution);
 
@@ -175,6 +180,6 @@ mod Distributor {
             return 0;
         }
 
-        total_distribution - 1 / 10000
+        (total_distribution - 1) / 10000
     }
 }
