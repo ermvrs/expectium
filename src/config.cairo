@@ -6,18 +6,13 @@ use integer::{u256_from_felt252};
 use option::OptionTrait;
 use hash::LegacyHash;
 
-const ORDER_STRUCT_STORAGE_SIZE: u8 = 4;
-
 #[derive(Drop, Copy, starknet::Store)]
-struct Order { // TODO: cancel order için orderid gerekecek.
-    // asset: Asset, // Gerek kalmaya bilir zaten mapli
-    // side: OrderSide, // Zaten mapli
+struct Order {
     order_id : u32,
     date: u64,
-    // user: ContractAddress, // Ayrı mappingde tut.
-    amount: u128, // max length çok yüksek decimals düşük tutabiliriz
+    amount: u128,
     price: u16,
-    status: OrderStatus // u8 length yeter
+    status: OrderStatus
 }
 
 const SHIFT_8: u256 = 0x100;
@@ -46,7 +41,7 @@ fn safe_u64_to_u128(val: u64) -> u128 {
     val_felt.try_into().unwrap()
 }
 
-fn safe_u16_to_u128(val: u16) -> u128 {
+fn safe_u16_to_u128(val: u16) -> u128 { // silinebilir upcast geldi ise
     let val_felt: felt252 = val.into();
 
     val_felt.try_into().unwrap()
@@ -57,6 +52,8 @@ fn safe_status_to_u128(val: OrderStatus) -> u128 {
 
     val_felt.try_into().unwrap()
 }
+
+// TODO: config dosyasını kaldır ikiye böl. Struct enumları ve fonksiyonları ayır. Fonksiyonlar utilse
 
 fn pack_order(order: Order) -> felt252 { // TEST EDİLDİ DOĞRU GİBİ DURUYOR.
     let mut shifted: u256 = safe_u32_to_u128(order.order_id).into(); // u32

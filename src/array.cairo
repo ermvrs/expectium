@@ -3,6 +3,8 @@ use array::{ArrayTrait, SpanTrait};
 use traits::{TryInto, Into};
 use expectium::config::{pack_order, unpack_order};
 
+// from https://github.com/keep-starknet-strange/alexandria/blob/main/src/sorting/src/merge_sort.cairo
+
 fn _sort_orders_descending(
     mut proposals: Array<felt252>
 ) -> Array<felt252> {
