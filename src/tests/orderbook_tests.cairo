@@ -3,7 +3,7 @@ use expectium::tests::mocks::interfaces::{IAccountDispatcher, IAccountDispatcher
 use expectium::interfaces::{IFactoryDispatcher, IFactoryDispatcherTrait, IMarketDispatcher, 
                             IMarketDispatcherTrait, IERC20Dispatcher, IERC20DispatcherTrait,
                             IOrderbookDispatcher, IOrderbookDispatcherTrait,
-                            IDistributorDispatcher, ISharesDispatcherTrait};
+                            IDistributorDispatcher, IDistributorDispatcherTrait, ISharesDispatcherTrait};
 use expectium::config::{Asset, Order, unpack_order, pack_order};
 use debug::PrintTrait;
 use array::ArrayTrait;
@@ -36,6 +36,7 @@ struct Setup {
     operator: IAccountDispatcher,
     alice: IAccountDispatcher,
     bob: IAccountDispatcher,
+    cindy: IAccountDispatcher,
     collateral: IERC20Dispatcher,
     market: IMarketDispatcher,
     factory: IFactoryDispatcher,
@@ -48,6 +49,7 @@ fn setup_with_mergeshares() -> Setup {
     let operator = deploy::deploy_account();
     let alice = deploy::deploy_account();
     let bob = deploy::deploy_account();
+    let cindy = deploy::deploy_account();
 
     let mock_shares = deploy::deploy_mock_shares();
     let distributor = deploy::deploy_distributor(operator.contract_address, mock_shares.contract_address);
@@ -66,6 +68,7 @@ fn setup_with_mergeshares() -> Setup {
 
     operator.erc20_transfer(collateral.contract_address, alice.contract_address, 5000000000000000000);
     operator.erc20_transfer(collateral.contract_address, bob.contract_address, 1000000000000000000);
+    operator.erc20_transfer(collateral.contract_address, cindy.contract_address, 2000000000000000000);
 
     let market_classhash: ClassHash = Market::TEST_CLASS_HASH.try_into().unwrap();
 
@@ -74,19 +77,23 @@ fn setup_with_mergeshares() -> Setup {
 
     let orderbook = deploy::deploy_orderbook(market, operator.contract_address, collateral.contract_address, distributor.contract_address);
 
-    alice.erc20_approve(collateral.contract_address, market, 1000000000000000000); // 1 ether
+    alice.erc20_approve(collateral.contract_address, market, integer::BoundedInt::max()); // 1 ether
     alice.market_mint_shares(market, 1000000000000000000);
 
-    bob.erc20_approve(collateral.contract_address, market, 100000000000000000); // 0.1 ether
+    bob.erc20_approve(collateral.contract_address, market, integer::BoundedInt::max()); // 0.1 ether
     bob.market_mint_shares(market, 100000000000000000);
 
-    Setup { operator, alice, bob, collateral, market: IMarketDispatcher { contract_address: market }, factory, orderbook, distributor, shares: mock_shares }
+    cindy.erc20_approve(collateral.contract_address, market, integer::BoundedInt::max()); // 0.2 ether
+    cindy.market_mint_shares(market, 200000000000000000);
+
+    Setup { operator, alice, bob, cindy, collateral, market: IMarketDispatcher { contract_address: market }, factory, orderbook, distributor, shares: mock_shares }
 }
 
 fn setup_with_shares_merged_and_fee_set() -> Setup {
     let setup = setup_with_mergeshares();
 
     let operator = setup.operator;
+    let book = setup.orderbook;
 
     let fees = expectium::config::PlatformFees { maker: 300, taker: 500 }; // taker %5, maker % 3
     operator.orderbook_set_fee(book.contract_address, fees);
@@ -371,5 +378,198 @@ fn test_insert_sell_orders_check_sorting() {
 #[available_gas(1000000000)]
 fn test_trade_with_fees() {
     let setup = setup_with_shares_merged_and_fee_set();
-    // Todo
+    // let fees = expectium::config::PlatformFees { maker: 300, taker: 500 }; // taker %5, maker % 3
+
+    let market = setup.market;
+    let collateral = setup.collateral;
+    let alice = setup.alice;
+    let book = setup.orderbook;
+    let bob = setup.bob;
+    let distributor = setup.distributor;
+
+    let initial_distribution = distributor.total_distribution(collateral.contract_address);
+    assert(initial_distribution == 0, 'initial dist wrong');
+
+    let alice_initial_share_balance = market.balance_of(alice.contract_address, Asset::Happens(()));
+    let bob_initial_share_balance = market.balance_of(bob.contract_address, Asset::Happens(()));
+
+    let alice_initial_collateral_balance = collateral.balanceOf(alice.contract_address);
+    let bob_initial_collateral_balance = collateral.balanceOf(bob.contract_address);
+
+    alice.erc20_approve(collateral.contract_address, book.contract_address, 1000000000000000 * 200);
+
+    let first_order_id = alice.orderbook_insert_buy_order(book.contract_address, Asset::Happens(()), 100000000000000, 1000); // 100000000000000 amount buy with price of 0.1$
+
+    assert(first_order_id > 0, 'error init order');
+
+    bob.market_approve(market.contract_address, book.contract_address);
+
+    // bob sells 200000000000000 amount of happens with price of 0.1$
+
+    let second_order_id = bob.orderbook_insert_sell_order(book.contract_address, Asset::Happens(()), 200000000000000, 1000);
+
+    // after that,
+    // bob should have 1 offer left with 100000000000000 sale
+    // bob should received 100000000000000 * 1000 -> minus taker fee amount of usdc
+    // alice should received 1000000000000000 -> minus maker fee amount of happens
+
+    let bob_collateral_balance_after = collateral.balanceOf(bob.contract_address);
+
+    let sale_quote_amount: u256 = (100000000000000 * 1000);
+    let sale_taker_fee: u256 = (sale_quote_amount * 500) / 10000;
+
+    assert((bob_collateral_balance_after - bob_initial_collateral_balance) == (sale_quote_amount - sale_taker_fee), 'bob collateral wrong');
+
+    let alice_share_balance_after = market.balance_of(alice.contract_address, Asset::Happens(()));
+    let sale_shares_fee: u256 = (100000000000000 * 300) / 10000;
+
+    assert((alice_share_balance_after - alice_initial_share_balance) == (100000000000000 - sale_shares_fee), 'alice shares wrong');
+
+    let packed_second_order = book.get_order(Asset::Happens(()),1_u8, second_order_id);
+    let unpacked_second_order = unpack_order(packed_second_order);
+
+    assert(unpacked_second_order.amount == 100000000000000_u128, 'order amount left wrong');
+
+    // check distributor registers
+    let final_distribution = distributor.total_distribution(collateral.contract_address);
+
+    assert(final_distribution == sale_taker_fee, 'distribution wrong');
 }
+
+#[test]
+#[available_gas(100000000000)]
+fn test_taker_match_with_multiple_orders() {
+    let setup = setup_with_shares_merged_and_fee_set();
+
+    let alice = setup.alice;
+    let bob = setup.bob;
+    let cindy = setup.cindy;
+
+    let book = setup.orderbook;
+    let market = setup.market;
+    let collateral = setup.collateral;
+    let distributor = setup.distributor;
+
+    // alice and bob creates 2 and 1 buy orders. Cindy will take all of them and insert sell order
+
+    // initial balances
+
+    let alice_initial_share_balance = market.balance_of(alice.contract_address, Asset::Not(()));
+    let bob_initial_share_balance = market.balance_of(bob.contract_address, Asset::Not(()));
+    let cindy_initial_share_balance = market.balance_of(cindy.contract_address, Asset::Not(()));
+
+    let cindy_initial_collateral_balance = collateral.balanceOf(cindy.contract_address);
+
+    alice.erc20_approve(collateral.contract_address, book.contract_address, integer::BoundedInt::max());
+    bob.erc20_approve(collateral.contract_address, book.contract_address, integer::BoundedInt::max());
+
+    alice.orderbook_insert_buy_order(book.contract_address, Asset::Not(()), 10000000, 2000); // buy 10000000 with price 0.2$
+    bob.orderbook_insert_buy_order(book.contract_address, Asset::Not(()), 50000000, 1750); // buy 50000000 with price 0.175$
+    alice.orderbook_insert_buy_order(book.contract_address, Asset::Not(()), 20000000, 1500); // buy 20000000 with price 0.15$
+
+    // total 80000000 on sale
+
+    cindy.market_approve(market.contract_address, book.contract_address);
+
+    let cindys_order_id = cindy.orderbook_insert_sell_order(book.contract_address, Asset::Not(()), 100000000, 1000); // sells 100000000 with price 0.1$
+
+    // cindy will spend like following
+    // 1st sell 10000000 to Alice 1st order with price of 0.2$ 
+    // 2nd sell 50000000 to Bob 1st order with price of 0.175$
+    // 3rd sell 20000000 to Alice 2nd order with price of 0.15$
+    // finally she creates order with rest amount. 20000000
+
+    // first check cindys order
+
+    let packed_cindys_order = book.get_order(Asset::Not(()), 1_u8, cindys_order_id);
+    let cindys_order = unpack_order(packed_cindys_order);
+
+    assert(cindys_order.amount == 20000000, 'cindys order amount wrong');
+
+    // cindy wants to sell 100000000 amount with price of 0.1$ but she sold them higher price so she should get
+    // (10000000 * 2000) + (50000000 * 1750) + (20000000 * 1500) amount of collateral(minus fee)
+
+    let cindy_return_without_fee: u256 = (10000000 * 2000) + (50000000 * 1750) + (20000000 * 1500);
+    let cindy_taker_fee = (cindy_return_without_fee * 500) / 10000;
+
+    let cindy_final_balance = collateral.balanceOf(cindy.contract_address);
+
+    assert((cindy_final_balance - cindy_initial_collateral_balance) == (cindy_return_without_fee - cindy_taker_fee), 'cindy coll balance wrong');
+
+    // check makers share balances
+
+    let alice_after_share_balance = market.balance_of(alice.contract_address, Asset::Not(()));
+    let bob_after_share_balance = market.balance_of(bob.contract_address, Asset::Not(()));
+
+    let alice_maker_fee: u256 = ((10000000 + 20000000) * 300) / 10000;
+    let bob_maker_fee: u256 = (50000000 * 300) / 10000;
+
+    assert((alice_after_share_balance - alice_initial_share_balance) == ((10000000 + 20000000) - alice_maker_fee), 'alice fee wrong');
+    assert((bob_after_share_balance - bob_initial_share_balance) == 50000000 - bob_maker_fee, 'bob fee wrong');
+
+    // check distribution.
+
+    let total_distribution = distributor.total_distribution(collateral.contract_address);
+
+    assert(total_distribution == cindy_taker_fee, 'distributed fee wrong');
+}
+
+#[test]
+#[available_gas(100000000000)]
+fn test_taker_match_with_multiple_orders_but_final_remains() {
+    let setup = setup_with_shares_merged_and_fee_set();
+
+    let alice = setup.alice;
+    let bob = setup.bob;
+    let cindy = setup.cindy;
+
+    let book = setup.orderbook;
+    let market = setup.market;
+    let collateral = setup.collateral;
+    let distributor = setup.distributor;
+
+    let alice_initial_share_balance = market.balance_of(alice.contract_address, Asset::Not(()));
+    let bob_initial_share_balance = market.balance_of(bob.contract_address, Asset::Not(()));
+    let cindy_initial_share_balance = market.balance_of(cindy.contract_address, Asset::Not(()));
+
+    let cindy_initial_collateral_balance = collateral.balanceOf(cindy.contract_address);
+
+    alice.erc20_approve(collateral.contract_address, book.contract_address, integer::BoundedInt::max());
+    bob.erc20_approve(collateral.contract_address, book.contract_address, integer::BoundedInt::max());
+
+    alice.orderbook_insert_buy_order(book.contract_address, Asset::Not(()), 10000000, 2000); // buy 10000000 with price 0.2$
+    bob.orderbook_insert_buy_order(book.contract_address, Asset::Not(()), 50000000, 1750); // buy 50000000 with price 0.175$
+    let final_order_id = alice.orderbook_insert_buy_order(book.contract_address, Asset::Not(()), 20000000, 1500); // buy 20000000 with price 0.15$
+
+    cindy.market_approve(market.contract_address, book.contract_address);
+
+    let cindys_order_id = cindy.orderbook_insert_sell_order(book.contract_address, Asset::Not(()), 70000000, 1000); // sells 70000000 with price 0.1$
+    assert(cindys_order_id == 0, 'cindy order id wrong');
+
+    let packed_final_order = book.get_order(Asset::Not(()), 0_u8, final_order_id);
+    let final_order = unpack_order(packed_final_order);
+
+    assert(final_order.amount == 10000000, 'final order amount wrong');
+
+    let cindy_return_without_fee: u256 = (10000000 * 2000) + (50000000 * 1750) + (10000000 * 1500);
+    let cindy_taker_fee = (cindy_return_without_fee * 500) / 10000;
+
+    let cindy_final_balance = collateral.balanceOf(cindy.contract_address);
+
+    assert((cindy_final_balance - cindy_initial_collateral_balance) == (cindy_return_without_fee - cindy_taker_fee), 'cindy coll balance wrong');
+
+    let alice_after_share_balance = market.balance_of(alice.contract_address, Asset::Not(()));
+    let bob_after_share_balance = market.balance_of(bob.contract_address, Asset::Not(()));
+
+    let alice_maker_fee: u256 = ((10000000 + 10000000) * 300) / 10000;
+    let bob_maker_fee: u256 = (50000000 * 300) / 10000;
+
+    assert((alice_after_share_balance - alice_initial_share_balance) == ((10000000 + 10000000) - alice_maker_fee), 'alice fee wrong');
+    assert((bob_after_share_balance - bob_initial_share_balance) == 50000000 - bob_maker_fee, 'bob fee wrong');
+
+    let total_distribution = distributor.total_distribution(collateral.contract_address);
+
+    assert(total_distribution == cindy_taker_fee, 'distributed fee wrong');
+}
+
+// TODO: yukarıdaki 2 metodun aynısı ancak sell order ile başlanıp buy ile eşleşecek şekilde. Dağıtımda kontrol edilmeli
