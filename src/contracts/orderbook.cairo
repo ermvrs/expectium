@@ -116,54 +116,22 @@ mod Orderbook {
             assert(price > 0_u16, 'price zero');
             assert(price <= 10000_u16, 'price too high');
             
-            let max_amount_for_order: u256 = quote_amount / price.into();
-
-            assert(max_amount_for_order.high == 0 , 'order amount too high');
+            assert(quote_amount.high == 0, 'quote too high');
 
             _receive_quote_token(ref self, caller, quote_amount);
-        }
 
-        /////
-        // asset: Alınacak asset
-        // amount: alınacak asset miktarı
-        // price: asset birim fiyatı
-        /////
-        fn insert_buy_order_deprecated(ref self: ContractState, asset: Asset, amount: u256, price: u16) -> u32 {
-            // Fiyat hesaplamada bi hata var
-            // Burda düzenleme yapalım. Miktar yerine, fiyat ve harcanacak usdc gönderilsin? amounta gerek yok.
-            assert(!_is_emergency(@self), 'in emergency');
+            let quote_left = _match_incoming_buy_order(ref self, caller, asset, quote_amount, price);
 
-            let caller = get_caller_address();
-            let time = get_block_timestamp();
-
-            assert(price > 0_u16, 'price zero');
-            assert(price <= 10000_u16, 'price too high');
-
-            assert(amount.high == 0, 'amount too high');
-
-            let total_quote: u256 = amount * safe_u16_to_u128(price).into();
-            assert(total_quote.high == 0, 'total_quote high');
-
-            _receive_quote_token(ref self, caller, total_quote);
-
-            let amount_low = amount.low; // alınacak asset miktarı
-            // usdcleri mevcut emirlerle spend edicez. Bu şekilde alım yaparsak düşük fiyatla alınanlarda fazladan usdc kalabilir. Onları geri gönderelim.
-
-            let (amount_left, spent_quote) = _match_incoming_buy_order_deprecated(ref self, caller, asset, amount_low, price);
-            // Dönen değerler. geriye kalan amount, spent_quote ise harcanana usdc.
-            // Buradan sonra. kalan total_quote - spent_quote miktarı kadar emir girilmeli.
-            if(spent_quote == total_quote) {
+            if(quote_left == 0) {
                 return 0_u32;
             }
-            let quote_left = total_quote - spent_quote; // Fix : 08.08.23 18:46 !! Selldede olabilir
-
-            let order_id = self.order_count.read() + 1; // 0. order id boş bırakılıyor. 0 döner ise order tamamen eşleşti demek.
+            let order_id = self.order_count.read() + 1;
             self.order_count.write(order_id);
 
-            let rest_amount: u128 = quote_left.low / safe_u16_to_u128(price).into();
+            let order_amount = quote_left / price.into();
 
             let mut order: Order = Order {
-                order_id: order_id, date: time, amount: rest_amount, price: price, status: OrderStatus::Initialized(()) // Eğer amount değiştiyse partially filled yap.
+                order_id: order_id, date: time, amount: order_amount.low, price: price, status: OrderStatus::Initialized(()) // Eğer amount değiştiyse partially filled yap.
             };
 
             let order_packed = pack_order(order);
@@ -187,10 +155,12 @@ mod Orderbook {
             };
 
             self.emit(Event::OrderInserted(
-                OrderInserted { maker: caller, asset: asset, side:0_u8, amount: u256 { high: 0, low: rest_amount }, price: price, id: order_id}
+                OrderInserted { maker: caller, asset: asset, side:0_u8, amount: order_amount, price: price, id: order_id}
             ));
+
             return order_id;
         }
+
 
         // Market order için price 1 gönderilebilir.
         fn insert_sell_order(ref self: ContractState, asset: Asset, amount: u256, price: u16) -> u32 {
@@ -504,22 +474,15 @@ mod Orderbook {
         }
     }
 
+    // returns harcanmayan quote_amount
     fn _match_incoming_buy_order(ref self: ContractState, taker: ContractAddress, asset: Asset, quote_amount: u256, price: u16) -> u256 {
         match asset {
-            
-        }
-    }
-
-    // returns geri kalan amount, harcanan quote
-    fn _match_incoming_buy_order_deprecated(ref self: ContractState, taker: ContractAddress, asset: Asset, amount: u128, price: u16) -> (u128, u256) {
-        match asset {
             Asset::Happens(()) => {
-                let mut amount_left = amount;
-                let mut quote_spent: u256 = 0;
+                let mut quote_left = quote_amount;
                 let mut current_orders: Array<felt252> = self.happens.read(1_u8); // mevcut satış emirleri
 
                 if(current_orders.len() == 0) {
-                    return (amount_left, 0); // emir yoksa direk emir gir.
+                    return quote_left;
                 }
 
                 let mut orders_modified = ArrayTrait::<felt252>::new();
@@ -529,34 +492,36 @@ mod Orderbook {
                         Option::Some(v) => {
                             let mut order: Order = unpack_order(v);
 
-                            if(amount_left == 0 || order.price > price) {
+                            if(quote_left == 0 || order.price > price) {
                                 orders_modified.append(v);
                                 continue;
-                            };
+                            }
 
                             let order_owner: ContractAddress = self.market_makers.read(order.order_id);
 
-                            if(order.amount < amount_left) { // miktar yetersiz bir sonraki orderlarada bakacağız.
-                                let spent_amount = order.amount; // bu orderda bu kadar alınacak
-                                amount_left -= spent_amount;
+                            let max_amount: u256 = quote_left / order.price.into();
+                            assert(max_amount.high == 0, 'amount too high');
+
+                            let maximum_amount_can_be_bought: u128 = max_amount.low;
+
+                            if(order.amount < maximum_amount_can_be_bought) {
+                                // bu order yeterli değil devam edecek.
+                                let spent_amount = order.amount;
+                                let quote_spent = spent_amount * order.price.into();
+
+                                quote_left -= quote_spent.into();
 
                                 order.status = OrderStatus::Filled(());
                                 order.amount = 0;
 
-
                                 let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), u256 { high: 0, low: spent_amount });
-                                // transfer işlemleri
-                                // 1) Emri girene orderdaki miktar kadar asset gönder
+                                
                                 _transfer_assets(ref self, Asset::Happens(()), taker, net_amount);
                                 _transfer_assets(ref self, Asset::Happens(()), self.operator.read(), taker_fee);
-                                // 2) Emir sahibine quote token gönder.
-                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into();
-                                let (net_amount, maker_fee) = _apply_fee(@self, FeeType::Maker(()), quote_amount);
-                                
-                                quote_spent += quote_amount;
+
+                                let (net_amount, maker_fee) = _apply_fee(@self, FeeType::Maker(()), quote_spent.into());
 
                                 _transfer_quote_token(ref self, order_owner, net_amount);
-                                // IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), maker_fee);
                                 _distribute_fees(@self, maker_fee);
 
                                 self.emit(Event::Matched(
@@ -568,10 +533,12 @@ mod Orderbook {
                                 continue;
                             };
 
-                            if(order.amount >= amount_left) {
-                                // bu order miktarı zaten yeterli. alım yapıp returnlicez
-                                let spent_amount = amount_left;
-                                amount_left = 0;
+                            if(order.amount >= maximum_amount_can_be_bought) {
+                                let spent_amount = maximum_amount_can_be_bought;
+                                let quote_spent: u256 = u256 { high: 0, low : spent_amount } * order.price.into();
+
+                                quote_left = 0;
+
                                 if(order.amount == spent_amount) {
                                     order.status = OrderStatus::Filled(());
                                     order.amount = 0;
@@ -586,14 +553,9 @@ mod Orderbook {
                                 _transfer_assets(ref self, Asset::Happens(()), taker, net_amount);
                                 _transfer_assets(ref self, Asset::Happens(()), self.operator.read(), taker_fee);
 
-                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into();
-                                let (net_amount, maker_fee) = _apply_fee(@self, FeeType::Maker(()), quote_amount);
-
-                                
-                                quote_spent += quote_amount;
+                                let (net_amount, maker_fee) = _apply_fee(@self, FeeType::Maker(()), quote_spent);
 
                                 _transfer_quote_token(ref self, order_owner, net_amount);
-                                //IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), maker_fee);
                                 _distribute_fees(@self, maker_fee);
 
                                 self.emit(Event::Matched(
@@ -611,15 +573,14 @@ mod Orderbook {
                         }
                     };
                 };
-                return (amount_left, quote_spent);
+                return quote_left;
             },
             Asset::Not(()) => {
-                let mut amount_left = amount;
-                let mut quote_spent: u256 = 0;
+                let mut quote_left = quote_amount;
                 let mut current_orders: Array<felt252> = self.not.read(1_u8); // mevcut satış emirleri
 
                 if(current_orders.len() == 0) {
-                    return (amount_left, 0); // emir yoksa direk emir gir.
+                    return quote_left;
                 }
 
                 let mut orders_modified = ArrayTrait::<felt252>::new();
@@ -629,36 +590,36 @@ mod Orderbook {
                         Option::Some(v) => {
                             let mut order: Order = unpack_order(v);
 
-                            if(amount_left == 0 || order.price > price) {
+                            if(quote_left == 0 || order.price > price) {
                                 orders_modified.append(v);
                                 continue;
-                            };
+                            }
 
                             let order_owner: ContractAddress = self.market_makers.read(order.order_id);
 
-                            if(order.amount < amount_left) { // miktar yetersiz bir sonraki orderlarada bakacağız.
-                                let spent_amount = order.amount; // bu orderda bu kadar alınacak
-                                amount_left -= spent_amount;
+                            let max_amount: u256 = quote_left / order.price.into();
+                            assert(max_amount.high == 0, 'amount too high');
+                            
+                            let maximum_amount_can_be_bought: u128 = max_amount.low;
+
+                            if(order.amount < maximum_amount_can_be_bought) {
+                                // bu order yeterli değil devam edecek.
+                                let spent_amount = order.amount;
+                                let quote_spent = spent_amount * order.price.into();
+
+                                quote_left -= quote_spent.into();
 
                                 order.status = OrderStatus::Filled(());
                                 order.amount = 0;
 
-                                // transfer işlemleri
-
                                 let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), u256 { high: 0, low: spent_amount });
-
-                                // 1) Emri girene orderdaki miktar kadar asset gönder
+                                
                                 _transfer_assets(ref self, Asset::Not(()), taker, net_amount);
                                 _transfer_assets(ref self, Asset::Not(()), self.operator.read(), taker_fee);
-                                // 2) Emir sahibine quote token gönder.
 
-                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into();
-                                let (net_amount, maker_fee) = _apply_fee(@self, FeeType::Maker(()), quote_amount);
-
-                                quote_spent += quote_amount;
+                                let (net_amount, maker_fee) = _apply_fee(@self, FeeType::Maker(()), quote_spent.into());
 
                                 _transfer_quote_token(ref self, order_owner, net_amount);
-                                // IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), maker_fee);
                                 _distribute_fees(@self, maker_fee);
 
                                 self.emit(Event::Matched(
@@ -666,13 +627,16 @@ mod Orderbook {
                                             asset: Asset::Not(()), matched_amount:  u256 { high: 0, low : spent_amount},
                                             price: order.price, taker: taker, taker_side: 0_u8}
                                 ));
+
                                 continue;
                             };
 
-                            if(order.amount >= amount_left) {
-                                // bu order miktarı zaten yeterli. alım yapıp returnlicez
-                                let spent_amount = amount_left;
-                                amount_left = 0;
+                            if(order.amount >= maximum_amount_can_be_bought) {
+                                let spent_amount = maximum_amount_can_be_bought;
+                                let quote_spent: u256 = u256 { high: 0, low : spent_amount } * order.price.into();
+
+                                quote_left = 0;
+
                                 if(order.amount == spent_amount) {
                                     order.status = OrderStatus::Filled(());
                                     order.amount = 0;
@@ -687,13 +651,9 @@ mod Orderbook {
                                 _transfer_assets(ref self, Asset::Not(()), taker, net_amount);
                                 _transfer_assets(ref self, Asset::Not(()), self.operator.read(), taker_fee);
 
-                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * safe_u16_to_u128(order.price).into();
-                                let (net_amount, maker_fee) = _apply_fee(@self, FeeType::Maker(()), quote_amount);
-
-                                quote_spent += quote_amount;
+                                let (net_amount, maker_fee) = _apply_fee(@self, FeeType::Maker(()), quote_spent);
 
                                 _transfer_quote_token(ref self, order_owner, net_amount);
-                                // IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), maker_fee);
                                 _distribute_fees(@self, maker_fee);
 
                                 self.emit(Event::Matched(
@@ -711,7 +671,7 @@ mod Orderbook {
                         }
                     };
                 };
-                return (amount_left, quote_spent);    
+                return quote_left;
             }
         }
     }

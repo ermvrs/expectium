@@ -192,10 +192,12 @@ fn test_insert_buy_order() {
     let order = book.get_order(Asset::Happens(()), 0_u8, order_id);
     let unpacked_order: Order = unpack_order(order);
 
+    let order_amount:u128 = 1000000000000000 / 200;
+
     assert(unpacked_order.price == 200_u16, 'order price wrong');
     assert(unpacked_order.order_id == 1_u32, 'order id wrong');
     assert(unpacked_order.date == 0x0, 'order date wrong');
-    assert(unpacked_order.amount == 1000000000000000_u128, 'order amount wrong');
+    assert(unpacked_order.amount == order_amount, 'order amount wrong');
 
     assert(book.get_order_owner(order_id) == alice.contract_address, 'order owner wrong');
 }
@@ -233,9 +235,13 @@ fn test_insert_buy_orders_check_sorting() {
     assert(second_order.order_id == 3, 'sec order wrong');
     assert(third_order.order_id == 1, 'third order wrong');
 
-    assert(first_order.amount == 100000000000000, 'first amount wrong');
-    assert(second_order.amount == 70000000000000, 'second amount wrong');
-    assert(third_order.amount == 1000000000000000, 'third amount wrong');
+    let first_amount: u128 = 100000000000000 / 150;
+    let second_amount: u128 = 70000000000000 / 125;
+    let third_amount: u128 = 1000000000000000 / 100;
+
+    assert(first_order.amount == first_amount, 'first amount wrong');
+    assert(second_order.amount == second_amount, 'second amount wrong');
+    assert(third_order.amount == third_amount, 'third amount wrong');
 }
 
 #[test]
@@ -266,17 +272,19 @@ fn test_insert_sell_order_check_match() {
     let after_trade_alice_commodity_balance = market.balance_of(alice.contract_address, Asset::Happens(()));
     let after_trade_bob_collateral_balance = collateral.balanceOf(bob.contract_address);
 
+    let commodity_bought = 10000000000000 / 100;
     // Alice commodity balance arttı çünkü alım emri girmişti
-    assert((after_trade_alice_commodity_balance - before_trade_alice_commodity_balance) == 10000000000000, 'commodity transfer wrong');
+    assert((after_trade_alice_commodity_balance - before_trade_alice_commodity_balance) == commodity_bought, 'commodity transfer wrong');
     // Bobun collateral miktarı sadece alicin emri kadar arttı çünkü hepsi satılmadı.
-    assert((after_trade_bob_collateral_balance - before_trade_bob_collateral_balance) == (10000000000000 * 100), 'collateral transfer wrong');
+    let collateral_taken = 10000000000000;
+    assert((after_trade_bob_collateral_balance - before_trade_bob_collateral_balance) == collateral_taken, 'collateral transfer wrong');
 
     let orders_packed = book.get_orders(Asset::Happens(()), 1_u8);
 
     let order = unpack_order(*orders_packed.at(0));
 
     assert(order.order_id == 2, 'order wrong');
-    assert(order.amount == 5000000000000, 'amount wrong');
+    assert(order.amount == (15000000000000 - commodity_bought).try_into().unwrap(), 'amount wrong');
 
     // check order removed
 
@@ -398,7 +406,9 @@ fn test_trade_with_fees() {
 
     alice.erc20_approve(collateral.contract_address, book.contract_address, 1000000000000000 * 200);
 
-    let first_order_id = alice.orderbook_insert_buy_order(book.contract_address, Asset::Happens(()), 100000000000000, 1000); // 100000000000000 amount buy with price of 0.1$
+    let first_order_id = alice.orderbook_insert_buy_order(book.contract_address, Asset::Happens(()), 100000000000000, 1000); // 100000000000000 usdc paid
+
+    let alice_buy_amount = 100000000000000 / 1000;
 
     assert(first_order_id > 0, 'error init order');
 
@@ -409,26 +419,26 @@ fn test_trade_with_fees() {
     let second_order_id = bob.orderbook_insert_sell_order(book.contract_address, Asset::Happens(()), 200000000000000, 1000);
 
     // after that,
-    // bob should have 1 offer left with 100000000000000 sale
-    // bob should received 100000000000000 * 1000 -> minus taker fee amount of usdc
-    // alice should received 1000000000000000 -> minus maker fee amount of happens
+    // bob should have 1 offer left with order.amount - alice_buy_amount;
+    // bob should received alice_quote_amount minus fee
+    // alice should received alice_buy_amount -> minus maker fee amount of happens
 
     let bob_collateral_balance_after = collateral.balanceOf(bob.contract_address);
 
-    let sale_quote_amount: u256 = (100000000000000 * 1000);
+    let sale_quote_amount: u256 = 100000000000000;
     let sale_taker_fee: u256 = (sale_quote_amount * 500) / 10000;
 
     assert((bob_collateral_balance_after - bob_initial_collateral_balance) == (sale_quote_amount - sale_taker_fee), 'bob collateral wrong');
 
     let alice_share_balance_after = market.balance_of(alice.contract_address, Asset::Happens(()));
-    let sale_shares_fee: u256 = (100000000000000 * 300) / 10000;
+    let sale_shares_fee: u256 = (alice_buy_amount * 300) / 10000;
 
-    assert((alice_share_balance_after - alice_initial_share_balance) == (100000000000000 - sale_shares_fee), 'alice shares wrong');
+    assert((alice_share_balance_after - alice_initial_share_balance) == (alice_buy_amount - sale_shares_fee), 'alice shares wrong');
 
     let packed_second_order = book.get_order(Asset::Happens(()),1_u8, second_order_id);
     let unpacked_second_order = unpack_order(packed_second_order);
 
-    assert(unpacked_second_order.amount == 100000000000000_u128, 'order amount left wrong');
+    assert(unpacked_second_order.amount == (200000000000000 - alice_buy_amount).try_into().unwrap(), 'order amount left wrong');
 
     // check distributor registers
     let final_distribution = distributor.total_distribution(collateral.contract_address);
@@ -463,15 +473,19 @@ fn test_taker_match_with_multiple_orders() {
     alice.erc20_approve(collateral.contract_address, book.contract_address, integer::BoundedInt::max());
     bob.erc20_approve(collateral.contract_address, book.contract_address, integer::BoundedInt::max());
 
-    alice.orderbook_insert_buy_order(book.contract_address, Asset::Not(()), 10000000, 2000); // buy 10000000 with price 0.2$
-    bob.orderbook_insert_buy_order(book.contract_address, Asset::Not(()), 50000000, 1750); // buy 50000000 with price 0.175$
-    alice.orderbook_insert_buy_order(book.contract_address, Asset::Not(()), 20000000, 1500); // buy 20000000 with price 0.15$
+    alice.orderbook_insert_buy_order(book.contract_address, Asset::Not(()), 10000000, 2000); // buy with 10000000 usdc
+    bob.orderbook_insert_buy_order(book.contract_address, Asset::Not(()), 50000000, 1750); // buy with 50000000 usdc
+    alice.orderbook_insert_buy_order(book.contract_address, Asset::Not(()), 20000000, 1500); // buy with 20000000 usdc
 
     // total 80000000 on sale
 
     cindy.market_approve(market.contract_address, book.contract_address);
 
     let cindys_order_id = cindy.orderbook_insert_sell_order(book.contract_address, Asset::Not(()), 100000000, 1000); // sells 100000000 with price 0.1$
+
+    let alice_first_order_amount = 10000000 / 2000;
+    let bob_first_order_amount = 50000000 / 1750;
+    let alice_second_order_amount = 20000000 / 1500;
 
     // cindy will spend like following
     // 1st sell 10000000 to Alice 1st order with price of 0.2$ 
@@ -484,16 +498,15 @@ fn test_taker_match_with_multiple_orders() {
     let packed_cindys_order = book.get_order(Asset::Not(()), 1_u8, cindys_order_id);
     let cindys_order = unpack_order(packed_cindys_order);
 
-    assert(cindys_order.amount == 20000000, 'cindys order amount wrong');
+    assert(cindys_order.amount == (100000000 - (alice_first_order_amount + bob_first_order_amount + alice_second_order_amount)), 'cindys order amount wrong');
 
     // cindy wants to sell 100000000 amount with price of 0.1$ but she sold them higher price so she should get
     // (10000000 * 2000) + (50000000 * 1750) + (20000000 * 1500) amount of collateral(minus fee)
 
-    let cindy_return_without_fee: u256 = (10000000 * 2000) + (50000000 * 1750) + (20000000 * 1500);
+    let cindy_return_without_fee: u256 = ((alice_first_order_amount * 2000) + (bob_first_order_amount * 1750) + (alice_second_order_amount * 1500)).into();
     let cindy_taker_fee = (cindy_return_without_fee * 500) / 10000;
 
     let cindy_final_balance = collateral.balanceOf(cindy.contract_address);
-
     assert((cindy_final_balance - cindy_initial_collateral_balance) == (cindy_return_without_fee - cindy_taker_fee), 'cindy coll balance wrong');
 
     // check makers share balances
@@ -501,11 +514,11 @@ fn test_taker_match_with_multiple_orders() {
     let alice_after_share_balance = market.balance_of(alice.contract_address, Asset::Not(()));
     let bob_after_share_balance = market.balance_of(bob.contract_address, Asset::Not(()));
 
-    let alice_maker_fee: u256 = ((10000000 + 20000000) * 300) / 10000;
-    let bob_maker_fee: u256 = (50000000 * 300) / 10000;
+    let alice_maker_fee: u256 = (((alice_first_order_amount + alice_second_order_amount) * 300) / 10000).into();
+    let bob_maker_fee: u256 = ((bob_first_order_amount * 300) / 10000).into();
 
-    assert((alice_after_share_balance - alice_initial_share_balance) == ((10000000 + 20000000) - alice_maker_fee), 'alice fee wrong');
-    assert((bob_after_share_balance - bob_initial_share_balance) == 50000000 - bob_maker_fee, 'bob fee wrong');
+    assert((alice_after_share_balance - alice_initial_share_balance) == ((alice_first_order_amount + alice_second_order_amount) - alice_maker_fee.try_into().unwrap()).into(), 'alice fee wrong');
+    assert((bob_after_share_balance - bob_initial_share_balance) == (bob_first_order_amount.into() - bob_maker_fee), 'bob fee wrong');
 
     // check distribution.
 
@@ -537,21 +550,29 @@ fn test_taker_match_with_multiple_orders_but_final_remains() {
     alice.erc20_approve(collateral.contract_address, book.contract_address, integer::BoundedInt::max());
     bob.erc20_approve(collateral.contract_address, book.contract_address, integer::BoundedInt::max());
 
-    alice.orderbook_insert_buy_order(book.contract_address, Asset::Not(()), 10000000, 2000); // buy 10000000 with price 0.2$
-    bob.orderbook_insert_buy_order(book.contract_address, Asset::Not(()), 50000000, 1750); // buy 50000000 with price 0.175$
-    let final_order_id = alice.orderbook_insert_buy_order(book.contract_address, Asset::Not(()), 20000000, 1500); // buy 20000000 with price 0.15$
+    alice.orderbook_insert_buy_order(book.contract_address, Asset::Not(()), 10000000, 2000); // buy with 10000000 usdc 
+    bob.orderbook_insert_buy_order(book.contract_address, Asset::Not(()), 50000000, 1750); // buy with 50000000 usdc
+    let final_order_id = alice.orderbook_insert_buy_order(book.contract_address, Asset::Not(()), 20000000, 1500); // buy with 20000000 usdc
+
+    let alice_first_order_amount = 10000000 / 2000;
+    let bob_first_order_amount = 50000000 / 1750; // 33571
+    let alice_second_order_amount = 20000000 / 1500; // 13333
+
 
     cindy.market_approve(market.contract_address, book.contract_address);
 
-    let cindys_order_id = cindy.orderbook_insert_sell_order(book.contract_address, Asset::Not(()), 70000000, 1000); // sells 70000000 with price 0.1$
+    let cindys_order_id = cindy.orderbook_insert_sell_order(book.contract_address, Asset::Not(()), 40000, 1000); // sells 70000000 with price 0.1$
     assert(cindys_order_id == 0, 'cindy order id wrong');
 
     let packed_final_order = book.get_order(Asset::Not(()), 0_u8, final_order_id);
     let final_order = unpack_order(packed_final_order);
 
-    assert(final_order.amount == 10000000, 'final order amount wrong');
+    let spent_on_two = alice_first_order_amount + bob_first_order_amount;
+    let left_for_final_order = 40000 - spent_on_two;
 
-    let cindy_return_without_fee: u256 = (10000000 * 2000) + (50000000 * 1750) + (10000000 * 1500);
+    assert(final_order.amount == alice_second_order_amount - left_for_final_order, 'final order amount wrong');
+
+    let cindy_return_without_fee: u256 = ((alice_first_order_amount * 2000) + (bob_first_order_amount * 1750) + (left_for_final_order * 1500)).into();
     let cindy_taker_fee = (cindy_return_without_fee * 500) / 10000;
 
     let cindy_final_balance = collateral.balanceOf(cindy.contract_address);
@@ -561,15 +582,21 @@ fn test_taker_match_with_multiple_orders_but_final_remains() {
     let alice_after_share_balance = market.balance_of(alice.contract_address, Asset::Not(()));
     let bob_after_share_balance = market.balance_of(bob.contract_address, Asset::Not(()));
 
-    let alice_maker_fee: u256 = ((10000000 + 10000000) * 300) / 10000;
-    let bob_maker_fee: u256 = (50000000 * 300) / 10000;
+    let alice_maker_fee: u256 = (((alice_first_order_amount + (left_for_final_order)) * 300) / 10000).into();
+    let bob_maker_fee: u256 = ((bob_first_order_amount * 300) / 10000).into();
 
-    assert((alice_after_share_balance - alice_initial_share_balance) == ((10000000 + 10000000) - alice_maker_fee), 'alice fee wrong');
-    assert((bob_after_share_balance - bob_initial_share_balance) == 50000000 - bob_maker_fee, 'bob fee wrong');
+    assert((alice_after_share_balance - alice_initial_share_balance) == ((alice_first_order_amount + (left_for_final_order)) - alice_maker_fee.try_into().unwrap()).into(), 'alice fee wrong');
+    assert((bob_after_share_balance - bob_initial_share_balance) == (bob_first_order_amount - bob_maker_fee.try_into().unwrap()).into(), 'bob fee wrong');
 
     let total_distribution = distributor.total_distribution(collateral.contract_address);
 
     assert(total_distribution == cindy_taker_fee, 'distributed fee wrong');
+
+    let orders_buy = book.get_orders(Asset::Not(()), 0_u8);
+    let orders_sell = book.get_orders(Asset::Not(()), 1_u8);
+
+    assert(orders_buy.len() == 1, 'buy orders len wrong');
+    assert(orders_sell.len() == 0, 'sell orders len wrong');
 }
 
 // TODO: yukarıdaki 2 metodun aynısı ancak sell order ile başlanıp buy ile eşleşecek şekilde. Dağıtımda kontrol edilmeli
@@ -607,7 +634,7 @@ fn test_taker_match_with_multiple_orders_but_maker_is_seller_and_final_remains()
     let bob_initial_share_balance = market.balance_of(bob.contract_address, Asset::Happens(()));
     let cindy_initial_share_balance = market.balance_of(cindy.contract_address, Asset::Happens(()));
 
-    // alice insert to sell orders with 1000000 amount per 0.1$ and 3000000 per 0.2$
+    // alice insert to sell orders with 6000000 amount per 0.225$ and 1000000 per 0.1$
 
     let alice_first_order_id = alice.orderbook_insert_sell_order(book.contract_address, Asset::Happens(()), 6000000, 2250);
     assert(alice_first_order_id == 1, 'alice first orderid wrong');
@@ -642,11 +669,13 @@ fn test_taker_match_with_multiple_orders_but_maker_is_seller_and_final_remains()
     assert(unpacked_third_order.order_id == 1, 'first order wrong');
 
     // all orders correct. Now cindy enters buy order.
-    // She buy 6000000 per price 0.25$, it should matches with all orders. and last order should remains 2000000
+    // She buy with 11000000 * 2500 usdc so last order should remain 1000000
 
-    let cindy_order_id = cindy.orderbook_insert_buy_order(book.contract_address, Asset::Happens(()), 6000000, 2500);
+    let cindy_spend_quote = ((4000000 * 700) + (1000000 * 1000) + (5000000 * 2250)).into();
+
+
+    let cindy_order_id = cindy.orderbook_insert_buy_order(book.contract_address, Asset::Happens(()), cindy_spend_quote, 2500);
     assert(cindy_order_id == 0, 'cindy order entered'); // orderid should return 0 bcs it already matches all amount
-    // Todo: Fails, emir giriliyor neden?
 
     let final_buy_order_count = book.get_orders(Asset::Happens(()), 0_u8);
     assert(final_buy_order_count.len() == 0, 'wrong buy order count');
@@ -656,16 +685,7 @@ fn test_taker_match_with_multiple_orders_but_maker_is_seller_and_final_remains()
     let packed_remaining_order = book.get_order(Asset::Happens(()), 1_u8, alice_first_order_id);
     let remaining_order: Order = unpack_order(packed_remaining_order);
 
-    // cindy paid 6000000 * 2500 amount of collateral so total of 15000000000
-    // in first order she spends = 2800000000
-    // second order she spends = 1000000000
-    // the rest will be spent on last 11200000000
-
-    // last order she can get 11200000000 / 2250 = 4977777.78
-
-    // last order remaininng should = 1022222.22
-
-    assert(remaining_order.amount == 1022222, 'remaining order amount wrong');
+    assert(remaining_order.amount == 1000000, 'remaining order amount wrong');
     assert(remaining_order.price == 2250, 'remaining order price wrong');
 
     // final balances
@@ -680,9 +700,105 @@ fn test_taker_match_with_multiple_orders_but_maker_is_seller_and_final_remains()
 
     // cindys final share balance should be higher than expected, because she bought with lower price then she expected
     // so cindy
-    let cindy_taker_fee: u256 = (6000000 * 500) / 10000;
+    let cindy_bought_amount = (4000000 + 1000000 + 5000000).into();
+    let cindy_taker_fee: u256 = (cindy_bought_amount * 500) / 10000;
 
-    assert((cindy_final_share_balance) == (cindy_initial_share_balance + (6000000 - cindy_taker_fee)), 'cindy final share wrong');
+    assert((cindy_final_share_balance) == (cindy_initial_share_balance + (cindy_bought_amount - cindy_taker_fee)), 'cindy final share wrong');
     
-    // cindy bought shares but 
+    let alice_collateral_receive_without_fee: u256 = ((1000000 * 1000) + (5000000 * 2250)).into();
+    let alice_maker_fee: u256 = (alice_collateral_receive_without_fee) * 300 / 10000;
+
+    let bob_collateral_receive_without_fee: u256 = (4000000 * 700).into();
+    let bob_maker_fee: u256 = (bob_collateral_receive_without_fee) * 300 / 10000;
+
+    assert((alice_final_collateral_balance - alice_initial_collateral_balance) == (alice_collateral_receive_without_fee - alice_maker_fee), 'alice coll wrong');
+    assert((bob_final_collateral_balance - bob_initial_collateral_balance) == (bob_collateral_receive_without_fee - bob_maker_fee), 'bob coll wrong');
+    
+    let total_distribution = distributor.total_distribution(collateral.contract_address);
+
+    assert(total_distribution == (bob_maker_fee + alice_maker_fee), 'distributed fee wrong');
+}
+
+#[test]
+#[available_gas(100000000000)]
+fn test_taker_match_with_multiple_orders_and_taker_is_seller() {
+    // taker matches with 3 orders and then adds order finally
+    let setup = setup_with_shares_merged_and_fee_set();
+
+    let alice = setup.alice;
+    let bob = setup.bob;
+    let cindy = setup.cindy;
+
+    let book = setup.orderbook;
+    let market = setup.market;
+    let collateral = setup.collateral;
+    let distributor = setup.distributor;
+
+    // alice and bob creates 2 and 1 buy orders. Cindy will take all of them and insert sell order
+
+    // initial balances
+
+    let alice_initial_share_balance = market.balance_of(alice.contract_address, Asset::Not(()));
+    let bob_initial_share_balance = market.balance_of(bob.contract_address, Asset::Not(()));
+    let cindy_initial_share_balance = market.balance_of(cindy.contract_address, Asset::Not(()));
+
+
+    let alice_initial_collateral_balance = collateral.balanceOf(alice.contract_address);
+    let bob_initial_collateral_balance = collateral.balanceOf(bob.contract_address);
+    let cindy_initial_collateral_balance = collateral.balanceOf(cindy.contract_address);
+
+    alice.market_approve(market.contract_address, book.contract_address);
+    bob.market_approve(market.contract_address, book.contract_address);
+
+    alice.orderbook_insert_sell_order(book.contract_address, Asset::Not(()), 10000000, 1000); // sell for 0.1$
+    bob.orderbook_insert_sell_order(book.contract_address, Asset::Not(()), 20000000, 450);
+    alice.orderbook_insert_sell_order(book.contract_address, Asset::Not(()), 40000000, 1250);
+
+    // total 70000000 on sale
+
+    cindy.erc20_approve(collateral.contract_address, book.contract_address, integer::BoundedInt::max());
+
+    let cindy_total_quote: u256 = 75000000000;
+                                //69000000000
+
+    let cindys_order_id = cindy.orderbook_insert_buy_order(book.contract_address, Asset::Not(()), cindy_total_quote, 2000);
+    assert(cindys_order_id > 0, 'cindy orderid wrong');
+
+    let packed_cindys_order = book.get_order(Asset::Not(()), 0_u8, cindys_order_id);
+    let cindys_order = unpack_order(packed_cindys_order);
+
+    let cindy_spent_quote = (10000000 * 1000) + (20000000 * 450) + (40000000 * 1250);
+    let cindy_quote_left = cindy_total_quote - cindy_spent_quote;
+    
+
+    assert(cindys_order.amount == (cindy_quote_left / 2000).try_into().unwrap(), 'cindys order amount wrong');
+
+    let cindy_return_without_fee: u256 = (10000000 + 20000000 + 40000000).into();
+    let cindy_taker_fee = (cindy_return_without_fee * 500) / 10000;
+
+    let cindy_final_share_balance = market.balance_of(cindy.contract_address, Asset::Not(()));
+    let cindy_final_collateral_balance = collateral.balanceOf(cindy.contract_address);
+
+    assert((cindy_final_share_balance - cindy_initial_share_balance) == (cindy_return_without_fee - cindy_taker_fee), 'cindy share balance wrong');
+
+    assert((cindy_initial_collateral_balance - cindy_final_collateral_balance) == cindy_total_quote, 'cindy coll balance wrong');
+
+    // check makers share balances
+
+    let alice_after_collateral_balance = collateral.balanceOf(alice.contract_address);
+    let bob_after_collateral_balance = collateral.balanceOf(bob.contract_address);
+
+    let alice_return_without_fee: u256 = (10000000 * 1000) + (40000000 * 1250);
+    let bob_return_without_fee: u256 = 20000000 * 450;
+
+    let alice_maker_fee: u256 = ((((10000000_u256 * 1000_u256) + (40000000_u256 * 1250_u256)) * 300_u256) / 10000).into();
+    let bob_maker_fee: u256 = (((20000000_u256 * 450_u256) * 300_u256) / 10000).into();
+
+    assert((alice_after_collateral_balance - alice_initial_collateral_balance) == (alice_return_without_fee - alice_maker_fee), 'alice coll wrong');
+    assert((bob_after_collateral_balance - bob_initial_collateral_balance) == (bob_return_without_fee - bob_maker_fee), 'bob coll wrong');
+    // check distribution.
+
+    let total_distribution = distributor.total_distribution(collateral.contract_address);
+
+    assert(total_distribution == (bob_maker_fee + alice_maker_fee), 'distributed fee wrong');
 }

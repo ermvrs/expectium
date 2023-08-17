@@ -3,7 +3,7 @@ use expectium::config::{Asset, PlatformFees};
 
 #[starknet::interface]
 trait IOrderbook<TContractState> {
-    fn insert_buy_order(ref self: TContractState, asset: Asset, amount: u256, price: u16) -> u32; // order_id döndürür
+    fn insert_buy_order(ref self: TContractState, asset: Asset, quote_amount: u256, price: u16) -> u32; // order_id döndürür
     fn insert_sell_order(ref self: TContractState, asset: Asset, amount: u256, price: u16) -> u32;
     fn cancel_buy_order(ref self: TContractState, asset: Asset, order_id: u32);
     fn cancel_sell_order(ref self: TContractState, asset: Asset, order_id: u32);
