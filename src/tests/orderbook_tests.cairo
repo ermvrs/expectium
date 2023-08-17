@@ -573,3 +573,116 @@ fn test_taker_match_with_multiple_orders_but_final_remains() {
 }
 
 // TODO: yukarıdaki 2 metodun aynısı ancak sell order ile başlanıp buy ile eşleşecek şekilde. Dağıtımda kontrol edilmeli
+
+#[test]
+#[available_gas(100000000000)]
+fn test_taker_match_with_multiple_orders_but_maker_is_seller_and_final_remains() {
+    let setup = setup_with_shares_merged_and_fee_set();
+
+    let alice = setup.alice;
+    let bob = setup.bob;
+    let cindy = setup.cindy;
+
+    let book = setup.orderbook;
+    let market = setup.market;
+    let collateral = setup.collateral;
+    let distributor = setup.distributor;
+
+    // alice and bob creates sell orders.
+
+    alice.market_approve(market.contract_address, book.contract_address);
+    bob.market_approve(market.contract_address, book.contract_address);
+
+    // cindy will enter buy order.
+
+    cindy.erc20_approve(collateral.contract_address, book.contract_address, integer::BoundedInt::max());
+
+    // initial balances
+
+    let alice_initial_collateral_balance = collateral.balanceOf(alice.contract_address);
+    let bob_initial_collateral_balance = collateral.balanceOf(bob.contract_address);
+    let cindy_initial_collateral_balance = collateral.balanceOf(cindy.contract_address);
+
+    let alice_initial_share_balance = market.balance_of(alice.contract_address, Asset::Happens(()));
+    let bob_initial_share_balance = market.balance_of(bob.contract_address, Asset::Happens(()));
+    let cindy_initial_share_balance = market.balance_of(cindy.contract_address, Asset::Happens(()));
+
+    // alice insert to sell orders with 1000000 amount per 0.1$ and 3000000 per 0.2$
+
+    let alice_first_order_id = alice.orderbook_insert_sell_order(book.contract_address, Asset::Happens(()), 6000000, 2250);
+    assert(alice_first_order_id == 1, 'alice first orderid wrong');
+
+    // bob sells 4000000 per 0.07$
+
+    let bob_first_order_id = bob.orderbook_insert_sell_order(book.contract_address, Asset::Happens(()), 4000000, 700);
+    assert(bob_first_order_id == 2, 'bob orderid wrong');
+
+    let alice_second_order_id = alice.orderbook_insert_sell_order(book.contract_address, Asset::Happens(()), 1000000, 1000);
+    assert(alice_second_order_id == 3, 'alice second orderid wrong');
+
+    let orders = book.get_orders(Asset::Happens(()), 1_u8);
+    assert(orders.len() == 3, 'order count wrong');
+
+    // check order arrangement 
+    // 1st = bob, 2nd = alice 2nd, 3rd = alice 1st
+
+    let packed_first_order: felt252 = *orders.at(0);
+    let unpacked_first_order: Order = unpack_order(packed_first_order);
+
+    assert(unpacked_first_order.order_id == 2, 'first order wrong');
+
+    let packed_second_order: felt252 = *orders.at(1);
+    let unpacked_second_order: Order = unpack_order(packed_second_order);
+
+    assert(unpacked_second_order.order_id == 3, 'first order wrong');
+
+    let packed_third_order: felt252 = *orders.at(2);
+    let unpacked_third_order: Order = unpack_order(packed_third_order);
+
+    assert(unpacked_third_order.order_id == 1, 'first order wrong');
+
+    // all orders correct. Now cindy enters buy order.
+    // She buy 6000000 per price 0.25$, it should matches with all orders. and last order should remains 2000000
+
+    let cindy_order_id = cindy.orderbook_insert_buy_order(book.contract_address, Asset::Happens(()), 6000000, 2500);
+    assert(cindy_order_id == 0, 'cindy order entered'); // orderid should return 0 bcs it already matches all amount
+    // Todo: Fails, emir giriliyor neden?
+
+    let final_buy_order_count = book.get_orders(Asset::Happens(()), 0_u8);
+    assert(final_buy_order_count.len() == 0, 'wrong buy order count');
+    let final_sell_order_count = book.get_orders(Asset::Happens(()), 1_u8);
+    assert(final_sell_order_count.len() == 1, 'wrong sell order count');
+
+    let packed_remaining_order = book.get_order(Asset::Happens(()), 1_u8, alice_first_order_id);
+    let remaining_order: Order = unpack_order(packed_remaining_order);
+
+    // cindy paid 6000000 * 2500 amount of collateral so total of 15000000000
+    // in first order she spends = 2800000000
+    // second order she spends = 1000000000
+    // the rest will be spent on last 11200000000
+
+    // last order she can get 11200000000 / 2250 = 4977777.78
+
+    // last order remaininng should = 1022222.22
+
+    assert(remaining_order.amount == 1022222, 'remaining order amount wrong');
+    assert(remaining_order.price == 2250, 'remaining order price wrong');
+
+    // final balances
+
+    let alice_final_collateral_balance = collateral.balanceOf(alice.contract_address);
+    let bob_final_collateral_balance = collateral.balanceOf(bob.contract_address);
+    let cindy_final_collateral_balance = collateral.balanceOf(cindy.contract_address);
+
+    let alice_final_share_balance = market.balance_of(alice.contract_address, Asset::Happens(()));
+    let bob_final_share_balance = market.balance_of(bob.contract_address, Asset::Happens(()));
+    let cindy_final_share_balance = market.balance_of(cindy.contract_address, Asset::Happens(()));
+
+    // cindys final share balance should be higher than expected, because she bought with lower price then she expected
+    // so cindy
+    let cindy_taker_fee: u256 = (6000000 * 500) / 10000;
+
+    assert((cindy_final_share_balance) == (cindy_initial_share_balance + (6000000 - cindy_taker_fee)), 'cindy final share wrong');
+    
+    // cindy bought shares but 
+}

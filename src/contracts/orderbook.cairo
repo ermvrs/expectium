@@ -111,6 +111,7 @@ mod Orderbook {
         /////
         fn insert_buy_order(ref self: ContractState, asset: Asset, amount: u256, price: u16) -> u32 {
             // Fiyat hesaplamada bi hata var
+            // Burda düzenleme yapalım. Miktar yerine, fiyat ve harcanacak usdc gönderilsin? amounta gerek yok.
             assert(!_is_emergency(@self), 'in emergency');
 
             let caller = get_caller_address();
