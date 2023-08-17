@@ -1,0 +1,32 @@
+###### Class Hashes ######
+
+Factory : 0x055666f4d0d45e6719c5ed07cf4d7b6eaeccf3e41df4784e5b158e82bac7cb18
+Distributor : 0x010828b95605ffcf55549ff5d926cc784cdda3d78c1a59abccc5f5f1b60f05d2
+Market : 0x00b150b6dfc5fd7e5bb4298ea4dc03f3520a9543a23574f26cb3ed5c0083bf1e
+Orderbook : 0x0472c50b33cf9c28c370601cf76c7cb0512d54325cba0f2d3061e51b7a889eb1
+
+###### Contracts ######
+
+
+###### Deploy order & params #######
+
+1) Factory(operator, market_class)
+Factory (0x00df91b13d50e3935d404ed0497aa2ca345044544623075ae7ce56c432102b3a, 0x00b150b6dfc5fd7e5bb4298ea4dc03f3520a9543a23574f26cb3ed5c0083bf1e)
+
+Deployed Address : 0x03af65e53ba124ae194c43d1a2c09daa5fa16aa756afe2f70cc94918c13e1fc0
+
+2) Distributor(operator, shares)
+Distributor(0x00df91b13d50e3935d404ed0497aa2ca345044544623075ae7ce56c432102b3a, 0x0) Distribute testnette olmayacak. Shares adresi zero
+
+Deployed Address : 0x014d59e497b209ddfb2e9977f635da1a8a5aad2323fe190210e25490be262c5d
+
+3) Market factory üzerinden kuruluyor.
+
+Create Market tx : https://goerli.voyager.online/tx/0x69526b7bb1bd4bcea7829227d43f0bcb1954d5b3f9de4f5f4215f696dbd0d27
+Market addr : 0x6dd4fb946211bf1cb5ecb8e073736c3c0d1ad5aa3391e14756e445c7864ab6d
+
+4) Orderbook(market, operator, quote_token, distributor)
+Orderbook(0x6dd4fb946211bf1cb5ecb8e073736c3c0d1ad5aa3391e14756e445c7864ab6d, 0x00df91b13d50e3935d404ed0497aa2ca345044544623075ae7ce56c432102b3a, 
+            0x5a643907b9a4bc6a55e9069c4fd5fd1f5c79a22470690f75556c4736e34426, 0x014d59e497b209ddfb2e9977f635da1a8a5aad2323fe190210e25490be262c5d)
+            
+Deployed Address : 0x07d8e70848741f43208e463d95aa6d9dad15f0249a791cb0d028e20ee7eadc92
