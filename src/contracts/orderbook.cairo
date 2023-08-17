@@ -104,12 +104,31 @@ mod Orderbook {
         fn get_order_owner(self: @ContractState, order_id: u32) -> ContractAddress {
             self.market_makers.read(order_id)
         }
+
+        // quote_amount: usdc miktarı
+        // price : fiyat
+        fn insert_buy_order(ref self: ContractState, asset: Asset, quote_amount: u256, price: u16) -> u32 {
+            assert(!_is_emergency(@self), 'in emergency');
+
+            let caller = get_caller_address();
+            let time = get_block_timestamp();
+
+            assert(price > 0_u16, 'price zero');
+            assert(price <= 10000_u16, 'price too high');
+            
+            let max_amount_for_order: u256 = quote_amount / price.into();
+
+            assert(max_amount_for_order.high == 0 , 'order amount too high');
+
+            _receive_quote_token(ref self, caller, quote_amount);
+        }
+
         /////
         // asset: Alınacak asset
         // amount: alınacak asset miktarı
         // price: asset birim fiyatı
         /////
-        fn insert_buy_order(ref self: ContractState, asset: Asset, amount: u256, price: u16) -> u32 {
+        fn insert_buy_order_deprecated(ref self: ContractState, asset: Asset, amount: u256, price: u16) -> u32 {
             // Fiyat hesaplamada bi hata var
             // Burda düzenleme yapalım. Miktar yerine, fiyat ve harcanacak usdc gönderilsin? amounta gerek yok.
             assert(!_is_emergency(@self), 'in emergency');
@@ -130,7 +149,7 @@ mod Orderbook {
             let amount_low = amount.low; // alınacak asset miktarı
             // usdcleri mevcut emirlerle spend edicez. Bu şekilde alım yaparsak düşük fiyatla alınanlarda fazladan usdc kalabilir. Onları geri gönderelim.
 
-            let (amount_left, spent_quote) = _match_incoming_buy_order(ref self, caller, asset, amount_low, price);
+            let (amount_left, spent_quote) = _match_incoming_buy_order_deprecated(ref self, caller, asset, amount_low, price);
             // Dönen değerler. geriye kalan amount, spent_quote ise harcanana usdc.
             // Buradan sonra. kalan total_quote - spent_quote miktarı kadar emir girilmeli.
             if(spent_quote == total_quote) {
@@ -485,8 +504,14 @@ mod Orderbook {
         }
     }
 
+    fn _match_incoming_buy_order(ref self: ContractState, taker: ContractAddress, asset: Asset, quote_amount: u256, price: u16) -> u256 {
+        match asset {
+            
+        }
+    }
+
     // returns geri kalan amount, harcanan quote
-    fn _match_incoming_buy_order(ref self: ContractState, taker: ContractAddress, asset: Asset, amount: u128, price: u16) -> (u128, u256) {
+    fn _match_incoming_buy_order_deprecated(ref self: ContractState, taker: ContractAddress, asset: Asset, amount: u128, price: u16) -> (u128, u256) {
         match asset {
             Asset::Happens(()) => {
                 let mut amount_left = amount;
