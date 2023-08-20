@@ -20,6 +20,7 @@ trait IOrderbook<TContractState> {
     fn emergency_toggle(ref self: TContractState);
     fn refresh_distributor_approval(ref self: TContractState);
     fn set_fees(ref self: TContractState, fees: PlatformFees);
+    fn upgrade_contract(ref self: TContractState, new_class: ClassHash);
 }
 
 #[starknet::interface]

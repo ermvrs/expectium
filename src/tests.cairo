@@ -187,4 +187,13 @@ mod tests {
         assert(unpack_order(first_element).order_id == 5, 'first elem wrong');
         assert(unpack_order(last_element).order_id == 3, 'last elem wrong');
     }
+
+    #[test]
+    #[available_gas(300000000)]
+    fn unpack_test_frontend() {
+        let packed: felt252 = 10783978666860255917866806034807852348683020283280573855041071299428353;
+        let unpacked: Order = unpack_order(packed);
+
+        unpacked.print();
+    }
 }

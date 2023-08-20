@@ -1,6 +1,6 @@
 #[starknet::contract]
 mod Orderbook {
-    use starknet::{ContractAddress, get_block_timestamp, get_caller_address, get_contract_address};
+    use starknet::{ContractAddress, ClassHash, get_block_timestamp, get_caller_address, get_contract_address, replace_class_syscall};
     use expectium::config::{Order, Asset, PlatformFees, FeeType, OrderStatus, StoreFelt252Array, 
             pack_order, unpack_order, safe_u16_to_u128, safe_u32_to_u128};
     use expectium::interfaces::{IOrderbook, IMarketDispatcher, IMarketDispatcherTrait, 
@@ -277,6 +277,13 @@ mod Orderbook {
             assert(fees.maker <= 1000_u32, 'maker too much'); // Max fee %10
 
             self.fees.write(fees);
+         }
+
+         fn upgrade_contract(ref self: ContractState, new_class: ClassHash) {
+            let caller = get_caller_address();
+            assert(caller == self.operator.read(), 'only operator');
+
+            replace_class_syscall(new_class);
          }
     }
 
