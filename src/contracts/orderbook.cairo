@@ -107,26 +107,26 @@ mod Orderbook {
         }
 
         // Returns order packed, if order not exist returns 0
-        fn get_order_with_id(self: @ContractState, order_id: u32) -> felt252 {
+        fn get_order_with_id(self: @ContractState, order_id: u32) -> (Asset, u8, felt252) {
             let mut found_order: felt252 = 0;
 
             found_order = _find_order(self, Asset::Happens(()), 0_u8, order_id);
             if(found_order != 0) {
-                return found_order;
+                return (Asset::Happens(()), 0_u8, found_order);
             }
 
             found_order = _find_order(self, Asset::Happens(()), 1_u8, order_id);
             if(found_order != 0) {
-                return found_order;
+                return (Asset::Happens(()), 1_u8, found_order);
             }
 
             found_order = _find_order(self, Asset::Not(()), 0_u8, order_id);
             if(found_order != 0) {
-                return found_order;
+                return (Asset::Not(()), 0_u8, found_order);
             }
 
             found_order = _find_order(self, Asset::Not(()), 1_u8, order_id);
-            return found_order;
+            return (Asset::Not(()), 1_u8, found_order);
         }
 
         fn get_user_orders(self: @ContractState, user: ContractAddress) -> Array<u32> {

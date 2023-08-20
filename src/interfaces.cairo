@@ -13,7 +13,7 @@ trait IOrderbook<TContractState> {
     fn get_orders(self: @TContractState, asset: Asset, side: u8) -> Array<felt252>;
     fn get_order_owner(self: @TContractState, order_id: u32) -> ContractAddress;
     fn get_user_orders(self: @TContractState, user: ContractAddress) -> Array<u32>;
-    fn get_order_with_id(self: @TContractState, order_id: u32) -> felt252;
+    fn get_order_with_id(self: @TContractState, order_id: u32) -> (Asset, u8, felt252);
     fn market(self: @TContractState) -> ContractAddress;
     fn operator(self: @TContractState) -> ContractAddress;
     fn distributor(self: @TContractState) -> ContractAddress;
