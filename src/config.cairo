@@ -140,6 +140,69 @@ impl Felt252TryIntoOrderStatus of TryInto<felt252, OrderStatus> {
     }
 }
 
+impl StoreU32Array of Store<Array<u32>> {
+    fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<Array<u32>> {
+        StoreU32Array::read_at_offset(address_domain, base, 0)
+    }
+
+    fn write(address_domain: u32, base: StorageBaseAddress, value: Array<u32>) -> SyscallResult<()> {
+        StoreU32Array::write_at_offset(address_domain, base, 0, value)
+    }
+
+    fn read_at_offset(
+        address_domain: u32, base: StorageBaseAddress, mut offset: u8
+    ) -> SyscallResult<Array<u32>> {
+        let mut arr: Array<u32> = ArrayTrait::new();
+
+        let len: u8 = Store::<u8>::read_at_offset(address_domain, base, offset) // 0. offsette array length
+            .expect('Storage arr too large');
+        offset += 1;
+
+        let exit = len + offset;
+        loop {
+            if offset >= exit {
+                break;
+            }
+
+            let value = Store::<u32>::read_at_offset(
+                address_domain, base, offset
+            )
+                .unwrap();
+            arr.append(value);
+            offset += Store::<u32>::size();
+        };
+
+        // Return the array.
+        Result::Ok(arr)
+    }
+
+    fn write_at_offset(
+        address_domain: u32, base: StorageBaseAddress, mut offset: u8, mut value: Array<u32>
+    ) -> SyscallResult<()> {
+        let len: u8 = value.len().try_into().expect('Storage - Span too large');
+        Store::<u8>::write_at_offset(address_domain, base, offset, len);
+        offset += 1;
+
+        // Store the array elements sequentially
+        loop {
+            match value.pop_front() {
+                Option::Some(element) => {
+                    Store::<u32>::write_at_offset(
+                        address_domain, base, offset, element
+                    )?;
+                    offset += Store::<u32>::size();
+                },
+                Option::None(_) => {
+                    break Result::Ok(());
+                }
+            };
+        }
+    }
+    fn size() -> u8 {
+        1_u8 // Nasıl okuyacağız? aptal starknet
+    }
+}
+
 impl StoreFelt252Array of Store<Array<felt252>> {
     fn read(address_domain: u32, base: StorageBaseAddress) -> SyscallResult<Array<felt252>> {
         StoreFelt252Array::read_at_offset(address_domain, base, 0)
@@ -175,6 +238,7 @@ impl StoreFelt252Array of Store<Array<felt252>> {
         // Return the array.
         Result::Ok(arr)
     }
+    
 
     fn write_at_offset(
         address_domain: u32, base: StorageBaseAddress, mut offset: u8, mut value: Array<felt252>

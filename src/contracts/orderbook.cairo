@@ -1,7 +1,7 @@
 #[starknet::contract]
 mod Orderbook {
     use starknet::{ContractAddress, ClassHash, get_block_timestamp, get_caller_address, get_contract_address, replace_class_syscall};
-    use expectium::config::{Order, Asset, PlatformFees, FeeType, OrderStatus, StoreFelt252Array, 
+    use expectium::config::{Order, Asset, PlatformFees, FeeType, OrderStatus, StoreFelt252Array, StoreU32Array, 
             pack_order, unpack_order, safe_u16_to_u128, safe_u32_to_u128};
     use expectium::interfaces::{IOrderbook, IMarketDispatcher, IMarketDispatcherTrait, 
                                 IERC20Dispatcher, IERC20DispatcherTrait, 
@@ -56,6 +56,7 @@ mod Orderbook {
         happens: LegacyMap<u8, Array<felt252>>, // 0 buy 1 sell
         not: LegacyMap<u8, Array<felt252>>,
         market_makers: LegacyMap<u32, ContractAddress>, // Orderid -> Order owner
+        user_orders: LegacyMap<ContractAddress, Array<u32>>, // User -> Order id array
         order_count: u32,
         fees: PlatformFees, // 10000 bp. TODO: set fees
         is_emergency: bool,
@@ -105,6 +106,33 @@ mod Orderbook {
             self.market_makers.read(order_id)
         }
 
+        // Returns order packed, if order not exist returns 0
+        fn get_order_with_id(self: @ContractState, order_id: u32) -> felt252 {
+            let mut found_order: felt252 = 0;
+
+            found_order = _find_order(self, Asset::Happens(()), 0_u8, order_id);
+            if(found_order != 0) {
+                return found_order;
+            }
+
+            found_order = _find_order(self, Asset::Happens(()), 1_u8, order_id);
+            if(found_order != 0) {
+                return found_order;
+            }
+
+            found_order = _find_order(self, Asset::Not(()), 0_u8, order_id);
+            if(found_order != 0) {
+                return found_order;
+            }
+
+            found_order = _find_order(self, Asset::Not(()), 1_u8, order_id);
+            return found_order;
+        }
+
+        fn get_user_orders(self: @ContractState, user: ContractAddress) -> Array<u32> {
+            self.user_orders.read(user)
+        }
+
         // quote_amount: usdc miktarı
         // price : fiyat
         fn insert_buy_order(ref self: ContractState, asset: Asset, quote_amount: u256, price: u16) -> u32 {
@@ -137,6 +165,8 @@ mod Orderbook {
 
             let order_packed = pack_order(order);
             self.market_makers.write(order_id, caller);
+            _add_user_order_ids(ref self, caller, order_id);
+            
 
             match asset {
                 Asset::Happens(()) => {
@@ -196,6 +226,7 @@ mod Orderbook {
 
             let order_packed = pack_order(order);
             self.market_makers.write(order_id, caller); // market maker olarak ekleyelim.
+            _add_user_order_ids(ref self, caller, order_id);
 
             match asset {
                 Asset::Happens(()) => {
@@ -232,6 +263,8 @@ mod Orderbook {
 
             _cancel_buy_order(ref self, order_owner, asset, order_id);
 
+            _remove_user_order_ids(ref self, order_owner, order_id);
+
             self.emit(Event::Cancelled(
                 Cancelled { id: order_id, canceller: caller }
             ));
@@ -248,6 +281,7 @@ mod Orderbook {
             assert(order_owner == caller, 'owner wrong');
 
             _cancel_sell_order(ref self, order_owner, asset, order_id);
+            _remove_user_order_ids(ref self, order_owner, order_id);
 
             self.emit(Event::Cancelled(
                 Cancelled { id: order_id, canceller: caller }
@@ -286,6 +320,49 @@ mod Orderbook {
 
             replace_class_syscall(new_class);
          }
+    }
+
+    fn _add_user_order_ids(ref self: ContractState, user: ContractAddress, new_order_id: u32) {
+        let mut current_order_ids: Array<u32> = self.user_orders.read(user);
+
+        let mut new_order_ids_array = ArrayTrait::<u32>::new();
+        new_order_ids_array.append(new_order_id);
+
+        loop {
+            match current_order_ids.pop_front() {
+                Option::Some(v) => {
+                    // v orderid u32
+                    new_order_ids_array.append(v);
+                },
+                Option::None(()) => {
+                    break;
+                }
+            };
+        };
+
+        self.user_orders.write(user, new_order_ids_array);
+    }
+
+    fn _remove_user_order_ids(ref self: ContractState, user: ContractAddress, order_id: u32) {
+        let mut current_order_ids: Array<u32> = self.user_orders.read(user);
+
+        let mut new_order_ids_array = ArrayTrait::<u32>::new();
+
+        loop {
+            match current_order_ids.pop_front() {
+                Option::Some(v) => {
+                    if(v == order_id) {
+                        continue;
+                    };
+                    new_order_ids_array.append(v);
+                },
+                Option::None(()) => {
+                    break;
+                }
+            };
+        };
+
+        self.user_orders.write(user, new_order_ids_array);
     }
 
     fn _match_incoming_sell_order(ref self: ContractState, taker: ContractAddress, asset: Asset, amount: u128, price: u16) -> u128 {
