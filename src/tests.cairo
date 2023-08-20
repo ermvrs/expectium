@@ -193,7 +193,5 @@ mod tests {
     fn unpack_test_frontend() {
         let packed: felt252 = 10783978666860255917866806034807852348683020283280573855041071299428353;
         let unpacked: Order = unpack_order(packed);
-
-        unpacked.print();
     }
 }
