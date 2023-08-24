@@ -1,5 +1,5 @@
 use starknet::{ContractAddress, ClassHash};
-use expectium::config::{Asset, PlatformFees};
+use expectium::types::{Asset, PlatformFees};
 
 #[starknet::interface]
 trait IOrderbook<TContractState> {

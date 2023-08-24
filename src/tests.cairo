@@ -7,7 +7,9 @@ mod distributor_tests;
 
 use traits::{Into, TryInto};
 use debug::PrintTrait;
-use expectium::config::{pack_order, unpack_order, Order};
+use expectium::utils::{pack_order, unpack_order};
+use expectium::types::{Order};
+use expectium::implementations::{OrderStatusIntoFelt252, Felt252TryIntoOrderStatus};
 use clone::Clone;
 use array::ArrayTrait;
 
@@ -41,8 +43,10 @@ impl ArrayPrint of PrintTrait<Array<felt252>> {
 
 #[cfg(test)]
 mod tests {
-    use expectium::config::{pack_order, unpack_order, Order};
-    use expectium::array::{_sort_orders_descending, _sort_orders_ascending};
+    use expectium::utils::{pack_order, unpack_order};
+    use expectium::types::{Order};
+    use expectium::sort::{_sort_orders_descending, _sort_orders_ascending};
+    use expectium::implementations::{OrderStatusIntoFelt252, Felt252TryIntoOrderStatus};
     use traits::{Into, TryInto};
     use option::OptionTrait;
     use debug::PrintTrait;

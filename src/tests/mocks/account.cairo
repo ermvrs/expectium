@@ -1,7 +1,7 @@
 #[starknet::contract]
 mod Account {
     use starknet::{ContractAddress, ClassHash};
-    use expectium::config::Asset;
+    use expectium::types::Asset;
     use expectium::interfaces::{IERC20Dispatcher, IERC20DispatcherTrait, 
             IFactoryDispatcher, IFactoryDispatcherTrait,
             IMarketDispatcher, IMarketDispatcherTrait,
@@ -185,7 +185,7 @@ mod Account {
         fn orderbook_set_fee(
             self: @ContractState,
             contract_address: ContractAddress,
-            fees: expectium::config::PlatformFees,
+            fees: expectium::types::PlatformFees,
         ) {
             IOrderbookDispatcher { contract_address }.set_fees(fees);
         }

@@ -1,5 +1,5 @@
 use starknet::{ContractAddress, ClassHash};
-use expectium::config::Asset;
+use expectium::types::Asset;
 
 #[starknet::interface]
 trait IAccount<TContractState> {
@@ -135,7 +135,7 @@ trait IAccount<TContractState> {
         fn orderbook_set_fee(
             self: @TContractState,
             contract_address: ContractAddress,
-            fees: expectium::config::PlatformFees,
+            fees: expectium::types::PlatformFees,
         );
 
         fn distributor_new_distribution(

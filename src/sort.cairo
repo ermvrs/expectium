@@ -1,7 +1,7 @@
 use option::OptionTrait;
 use array::{ArrayTrait, SpanTrait};
 use traits::{TryInto, Into};
-use expectium::config::{pack_order, unpack_order};
+use expectium::utils::{pack_order, unpack_order};
 
 // from https://github.com/keep-starknet-strange/alexandria/blob/main/src/sorting/src/merge_sort.cairo
 

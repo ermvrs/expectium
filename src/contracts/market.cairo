@@ -1,8 +1,9 @@
 #[starknet::contract]
 mod Market {
-    use expectium::config::{Asset};
+    use expectium::types::{Asset};
     use starknet::{ContractAddress, get_caller_address, get_contract_address, 
                     ClassHash, replace_class_syscall, get_block_timestamp};
+    use expectium::implementations::{AssetLegacyHash};
     use expectium::interfaces::{IERC20Dispatcher, IERC20DispatcherTrait, IMarket};
     use traits::{Into, TryInto};
 

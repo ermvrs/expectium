@@ -1,5 +1,8 @@
 mod contracts;
-mod config;
 mod interfaces;
-mod array;
-// mod tests;
+mod sort;
+mod constants;
+mod implementations;
+mod types;
+mod utils;
+mod tests;

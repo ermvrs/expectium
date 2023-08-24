@@ -2,113 +2,9 @@ use starknet::{Store, ContractAddress, StorageBaseAddress, SyscallResult};
 use array::{ArrayTrait, SpanTrait};
 use traits::{Into, TryInto};
 use result::ResultTrait;
-use integer::{u256_from_felt252};
 use option::OptionTrait;
 use hash::LegacyHash;
-
-#[derive(Drop, Copy, starknet::Store)]
-struct Order {
-    order_id : u32,
-    date: u64,
-    amount: u128,
-    price: u16,
-    status: OrderStatus
-}
-
-const SHIFT_8: u256 = 0x100;
-const SHIFT_16: u256 = 0x10000;
-const SHIFT_32: u256 = 0x100000000;
-const SHIFT_64: u256 = 0x10000000000000000;
-const SHIFT_96: u256 = 0x1000000000000000000000000;
-const SHIFT_224: u256 = 0x100000000000000000000000000000000000000000000000000000000;
-const SHIFT_240: u256 = 0x1000000000000000000000000000000000000000000000000000000000000;
-
-const UNSHIFT_8: u256 = 0xFF;
-const UNSHIFT_16: u256 = 0xFFFF;
-const UNSHIFT_32: u256 = 0xFFFFFFFF;
-const UNSHIFT_64: u256 = 0xFFFFFFFFFFFFFFFF;
-const UNSHIFT_128: u256 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
-
-fn safe_u32_to_u128(val: u32) -> u128 {
-    let val_felt: felt252 = val.into();
-
-    val_felt.try_into().unwrap()
-}
-
-fn safe_u64_to_u128(val: u64) -> u128 {
-    let val_felt: felt252 = val.into();
-
-    val_felt.try_into().unwrap()
-}
-
-fn safe_u16_to_u128(val: u16) -> u128 { // silinebilir upcast geldi ise
-    let val_felt: felt252 = val.into();
-
-    val_felt.try_into().unwrap()
-}
-
-fn safe_status_to_u128(val: OrderStatus) -> u128 {
-    let val_felt: felt252 = val.into();
-
-    val_felt.try_into().unwrap()
-}
-
-// TODO: config dosyasını kaldır ikiye böl. Struct enumları ve fonksiyonları ayır. Fonksiyonlar utilse
-
-fn pack_order(order: Order) -> felt252 { // TEST EDİLDİ DOĞRU GİBİ DURUYOR.
-    let mut shifted: u256 = safe_u32_to_u128(order.order_id).into(); // u32
-    shifted = shifted | (u256_from_felt252(safe_u64_to_u128(order.date).into()) * SHIFT_32);
-    shifted = shifted | (u256_from_felt252(order.amount.into()) * SHIFT_96);
-    shifted = shifted | (u256_from_felt252(safe_u16_to_u128(order.price).into()) * SHIFT_224);
-    shifted = shifted | (u256_from_felt252(safe_status_to_u128(order.status).into()) * SHIFT_240); // KONTROL EDİLMELİ PACK DÜZGÜN MÜ.
-
-    shifted.try_into().unwrap()
-}
-
-fn unpack_order(packed_order: felt252) -> Order { // TEST EDİLDİ DOĞRU GİBİ DURUYOR. EN YÜKSEK DEĞERLERLE TEST EDİLMELİ.
-    // TODO
-    let unshifted: u256 = packed_order.into();
-
-    let order_id: u32 = (unshifted & UNSHIFT_32).try_into().unwrap();
-    let date: u64 = ((unshifted / SHIFT_32) & UNSHIFT_64).try_into().unwrap(); // burada libfuncs problemi var
-    let amount: u128 = ((unshifted / SHIFT_96) & UNSHIFT_128).try_into().unwrap();
-    let price: u16 = ((unshifted / SHIFT_224) & UNSHIFT_16).try_into().unwrap();
-    let status: felt252 = ((unshifted / SHIFT_240) & UNSHIFT_8).try_into().unwrap();
-
-    Order {
-        order_id : order_id, 
-        date: date,
-        amount: amount,
-        price: price,
-        status: status.try_into().unwrap()
-    }
-}
-
-#[derive(Copy, Drop, Serde, PartialEq)]
-enum FeeType {
-    Maker: (),
-    Taker: (),
-}
-
-#[derive(Copy, Drop, Serde, starknet::Store)]
-struct PlatformFees {
-    maker: u32,
-    taker: u32
-}
-
-#[derive(Copy, Drop, Serde, PartialEq)]
-enum Asset {
-    Happens: (),
-    Not: (),
-}
-
-#[derive(Copy, Drop, Serde, PartialEq, starknet::Store)]
-enum OrderStatus {
-    Initialized: (),
-    PartiallyFilled: (),
-    Filled: (),
-    Cancelled: ()
-}
+use expectium::types::{OrderStatus, Asset};
 
 impl OrderStatusIntoFelt252 of Into<OrderStatus, felt252> {
     fn into(self: OrderStatus) -> felt252 {
@@ -117,6 +13,17 @@ impl OrderStatusIntoFelt252 of Into<OrderStatus, felt252> {
             OrderStatus::PartiallyFilled(()) => 1,
             OrderStatus::Filled(()) => 2,
             OrderStatus::Cancelled(()) => 3,
+        }
+    }
+}
+
+impl OrderStatusIntoU256 of Into<OrderStatus, u256> {
+    fn into(self: OrderStatus) -> u256 {
+        match self {
+            OrderStatus::Initialized(()) => 0_u256,
+            OrderStatus::PartiallyFilled(()) => 1_u256,
+            OrderStatus::Filled(()) => 2_u256,
+            OrderStatus::Cancelled(()) => 3_u256,
         }
     }
 }

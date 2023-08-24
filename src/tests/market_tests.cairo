@@ -5,7 +5,7 @@ use expectium::interfaces::{IFactoryDispatcher, IFactoryDispatcherTrait, IMarket
                             IMarketDispatcherTrait, IERC20Dispatcher, IERC20DispatcherTrait,
                             };
 use expectium::tests::deploy;
-use expectium::config::Asset;
+use expectium::types::Asset;
 use expectium::contracts::market::Market;
 use expectium::contracts::distributor::Distributor;
 use traits::{Into, TryInto};
