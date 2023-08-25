@@ -2,6 +2,7 @@
 mod Multicall {
     use starknet::{call_contract_syscall};
     use array::{ArrayTrait, SpanTrait};
+    use result::ResultTrait;
 
     use expectium::interfaces::IMulticall;
     use expectium::types::{Call, Response};
@@ -29,7 +30,6 @@ mod Multicall {
 
     fn _call_contract(call: @Call) -> Response {
         let result = call_contract_syscall(*call.contract, *call.entrypoint, call.calldata.span());
-
         let mut call_response = ArrayTrait::<felt252>::new().span();
 
         let call_status = match result {
