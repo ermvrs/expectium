@@ -33,7 +33,7 @@ impl ArrayPrint of PrintTrait<Array<felt252>> {
 }
 
 #[derive(Drop)]
-struct Setup {
+struct Config {
     operator: IAccountDispatcher,
     alice: IAccountDispatcher,
     bob: IAccountDispatcher,
@@ -46,7 +46,7 @@ struct Setup {
     shares: IMockSharesDispatcher
 }
 
-fn setup_with_mergeshares() -> Setup {
+fn setup_with_mergeshares() -> Config {
     let operator = deploy::deploy_account();
     let alice = deploy::deploy_account();
     let bob = deploy::deploy_account();
@@ -87,10 +87,10 @@ fn setup_with_mergeshares() -> Setup {
     cindy.erc20_approve(collateral.contract_address, market, integer::BoundedInt::max()); // 0.2 ether
     cindy.market_mint_shares(market, 200000000000000000);
 
-    Setup { operator, alice, bob, cindy, collateral, market: IMarketDispatcher { contract_address: market }, factory, orderbook, distributor, shares: mock_shares }
+    Config { operator, alice, bob, cindy, collateral, market: IMarketDispatcher { contract_address: market }, factory, orderbook, distributor, shares: mock_shares }
 }
 
-fn setup_with_shares_merged_and_fee_set() -> Setup {
+fn setup_with_shares_merged_and_fee_set() -> Config {
     let setup = setup_with_mergeshares();
 
     let operator = setup.operator;

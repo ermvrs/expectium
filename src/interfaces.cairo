@@ -1,5 +1,5 @@
 use starknet::{ContractAddress, ClassHash};
-use expectium::types::{Asset, PlatformFees};
+use expectium::types::{Asset, PlatformFees, Call, Response};
 
 #[starknet::interface]
 trait IOrderbook<TContractState> {
@@ -105,4 +105,9 @@ trait IDistributor<TContractState> {
     fn register_token(ref self: TContractState, token: ContractAddress);
     fn upgrade_contract(ref self: TContractState, new_class: ClassHash);
     fn transfer_operator(ref self: TContractState, new_operator: ContractAddress);
+}
+
+#[starknet::interface]
+trait IMulticall<TContractState> {
+    fn multicall(self: @TContractState, calls: Array<Call>) -> Span<Response>;
 }

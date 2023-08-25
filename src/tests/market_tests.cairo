@@ -2,8 +2,7 @@ use starknet::{ContractAddress, contract_address_const, ClassHash};
 use expectium::tests::mocks::interfaces::{IAccountDispatcher, IAccountDispatcherTrait};
 use expectium::tests::mocks::mock_market_v2::MockMarket;
 use expectium::interfaces::{IFactoryDispatcher, IFactoryDispatcherTrait, IMarketDispatcher, 
-                            IMarketDispatcherTrait, IERC20Dispatcher, IERC20DispatcherTrait,
-                            };
+                            IMarketDispatcherTrait, IERC20Dispatcher, IERC20DispatcherTrait};
 use expectium::tests::deploy;
 use expectium::types::Asset;
 use expectium::contracts::market::Market;
@@ -12,7 +11,7 @@ use traits::{Into, TryInto};
 use option::OptionTrait;
 
 #[derive(Drop)]
-struct Setup {
+struct Config {
     operator: IAccountDispatcher,
     alice: IAccountDispatcher,
     bob: IAccountDispatcher,
@@ -21,7 +20,7 @@ struct Setup {
     factory: IFactoryDispatcher
 }
 
-fn setup() -> Setup {
+fn setup() -> Config {
     let operator = deploy::deploy_account();
     let alice = deploy::deploy_account();
     let bob = deploy::deploy_account();
@@ -41,10 +40,10 @@ fn setup() -> Setup {
     let factory = deploy::deploy_factory(operator.contract_address, market_classhash);
     let (_, market) = operator.factory_create_market(factory.contract_address, operator.contract_address, collateral.contract_address);
 
-    Setup { operator, alice, bob, collateral, market: IMarketDispatcher { contract_address: market}, factory }
+    Config { operator, alice, bob, collateral, market: IMarketDispatcher { contract_address: market}, factory }
 }
 
-fn setup_with_mergeshares() -> Setup {
+fn setup_with_mergeshares() -> Config {
     let operator = deploy::deploy_account();
     let alice = deploy::deploy_account();
     let bob = deploy::deploy_account();
@@ -67,7 +66,7 @@ fn setup_with_mergeshares() -> Setup {
     alice.erc20_approve(collateral.contract_address, market, 1000000000000000000); // 1 ether
     alice.market_mint_shares(market, 1000000000000000000);
 
-    Setup { operator, alice, bob, collateral, market: IMarketDispatcher { contract_address: market }, factory }
+    Config { operator, alice, bob, collateral, market: IMarketDispatcher { contract_address: market }, factory }
 }
 
 #[test]

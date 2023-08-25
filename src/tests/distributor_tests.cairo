@@ -8,7 +8,7 @@ use expectium::tests::deploy;
 use debug::PrintTrait;
 
 #[derive(Drop)]
-struct Setup {
+struct Config {
     operator: IAccountDispatcher,
     alice: IAccountDispatcher,
     bob: IAccountDispatcher,
@@ -17,7 +17,7 @@ struct Setup {
     distributor: IDistributorDispatcher
 }
 
-fn setup() -> Setup {
+fn setup() -> Config {
     let operator = deploy::deploy_account();
     let alice = deploy::deploy_account();
     let bob = deploy::deploy_account();
@@ -35,10 +35,10 @@ fn setup() -> Setup {
 
     operator.distributor_register_token(distributor.contract_address, collateral.contract_address); // Register usdc as distribution token.
 
-    Setup { operator, alice, bob, collateral, shares: mock_shares, distributor }
+    Config { operator, alice, bob, collateral, shares: mock_shares, distributor }
 }
 
-fn setup_with_nfts_minted() -> Setup {
+fn setup_with_nfts_minted() -> Config {
     let setup = setup();
 
     setup.operator.mock_shares_set_owner(setup.shares.contract_address, 0, setup.alice.contract_address); //0,1,2 alice
@@ -50,7 +50,7 @@ fn setup_with_nfts_minted() -> Setup {
     setup
 }
 
-fn setup_with_nfts_minted_and_distribution_added() -> Setup {
+fn setup_with_nfts_minted_and_distribution_added() -> Config {
     let setup = setup_with_nfts_minted();
 
     let operator = setup.operator;

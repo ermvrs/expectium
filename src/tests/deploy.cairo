@@ -8,10 +8,11 @@ use debug::PrintTrait;
 use starknet::{ContractAddress, ClassHash};
 
 use expectium::tests::mocks::interfaces::{IAccountDispatcher, IAccountDispatcherTrait, IMockSharesDispatcher};
-use expectium::interfaces::{IFactoryDispatcher, IERC20Dispatcher, IOrderbookDispatcher, IDistributorDispatcher};
+use expectium::interfaces::{IFactoryDispatcher, IERC20Dispatcher, IOrderbookDispatcher, IDistributorDispatcher, IMulticallDispatcher};
 use expectium::contracts::factory::Factory;
 use expectium::contracts::orderbook::Orderbook;
 use expectium::contracts::distributor::Distributor;
+use expectium::contracts::multicall::Multicall;
 use expectium::tests::mocks::erc20::ERC20;
 
 fn deploy_account() -> IAccountDispatcher {
@@ -69,6 +70,17 @@ fn deploy_distributor(operator: ContractAddress, shares: ContractAddress) -> IDi
     ).unwrap();
 
     IDistributorDispatcher { contract_address }  
+}
+
+fn deploy_multicall() -> IMulticallDispatcher {
+    let (contract_address, _) = deploy_syscall(
+        Multicall::TEST_CLASS_HASH.try_into().unwrap(),
+        0,
+        Default::default().span(),
+        false
+    ).unwrap();
+
+    IMulticallDispatcher { contract_address }  
 }
 
 fn deploy_erc20(

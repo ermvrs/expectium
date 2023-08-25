@@ -1,4 +1,16 @@
+#[derive(Drop, Serde)]
+struct Call {
+    contract: starknet::ContractAddress,
+    entrypoint: felt252,
+    calldata: Array<felt252>
+}
 
+#[derive(Drop, Serde)]
+struct Response {
+    contract: starknet::ContractAddress,
+    status: bool,
+    result: Span<felt252>
+}
 
 #[derive(Drop, Copy, starknet::Store)]
 struct Order {

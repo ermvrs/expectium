@@ -9,18 +9,18 @@ use expectium::contracts::market::Market;
 use expectium::contracts::distributor::Distributor;
 
 #[derive(Drop)]
-struct Setup {
+struct Config {
     operator: IAccountDispatcher,
     initial_hash: ClassHash,
     factory: IFactoryDispatcher
 }
 
-fn setup() -> Setup {
+fn setup() -> Config {
     let operator = deploy::deploy_account();
     let market_classhash: ClassHash = Market::TEST_CLASS_HASH.try_into().unwrap();
 
     let factory = deploy::deploy_factory(operator.contract_address, market_classhash);
-    Setup { initial_hash: market_classhash, operator, factory }
+    Config { initial_hash: market_classhash, operator, factory }
 }
 
 #[test]
