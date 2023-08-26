@@ -85,6 +85,11 @@ mod Multicall {
             match user_orderids.pop_front() {
                 Option::Some(v) => {
                     let (asset, side, order) = orderbook.get_order_with_id(v);
+                    
+                    if(order.into() == 0) { // Order sıfır ise order yok.
+                        continue;
+                    };
+
                     match asset {
                         expectium::types::Asset::Happens(()) => {
                             if(side == 0_u8) {
