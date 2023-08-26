@@ -110,4 +110,5 @@ trait IDistributor<TContractState> {
 #[starknet::interface]
 trait IMulticall<TContractState> {
     fn aggregateMarketData(self: @TContractState, market_address: ContractAddress, orderbook_address: ContractAddress) -> MarketData;
+    fn aggregateMultipleMarketsData(self: @TContractState, orderbooks: Array<ContractAddress>) -> Array<MarketData>;
 }
