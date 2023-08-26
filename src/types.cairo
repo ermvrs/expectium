@@ -1,15 +1,17 @@
 #[derive(Drop, Serde)]
-struct Call {
-    contract: starknet::ContractAddress,
-    entrypoint: felt252,
-    calldata: Array<felt252>
+struct MarketData {
+    collateral_amount: u256,
+    happens_resolve: u16,
+    not_resolve: u16,
+    orders: OrdersData
 }
 
 #[derive(Drop, Serde)]
-struct Response {
-    contract: starknet::ContractAddress,
-    status: bool,
-    result: Span<felt252>
+struct OrdersData {
+    happens_buy: Array<felt252>,
+    happens_sell: Array<felt252>,
+    not_buy: Array<felt252>,
+    not_sell: Array<felt252>
 }
 
 #[derive(Drop, Copy, starknet::Store)]

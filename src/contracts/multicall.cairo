@@ -1,49 +1,41 @@
 #[starknet::contract]
 mod Multicall {
-    use starknet::{call_contract_syscall};
+    use starknet::{call_contract_syscall, ContractAddress};
     use array::{ArrayTrait, SpanTrait};
     use result::ResultTrait;
 
-    use expectium::interfaces::IMulticall;
-    use expectium::types::{Call, Response};
+    use expectium::interfaces::{IMulticall, IMarketDispatcher, IMarketDispatcherTrait, IOrderbookDispatcher, IOrderbookDispatcherTrait};
+    use expectium::types::{MarketData, OrdersData};
 
     #[storage]
     struct Storage {}
 
+    // Todo multicall düzenle, market vs okuyabilsin
     #[external(v0)]
     impl Multicall of IMulticall<ContractState> {
-        // Her call için bi response döndürmeli
-        fn multicall(self: @ContractState, calls: Array<Call>) -> Span<Response> {
-            let mut i = 0;
-            let mut responses = ArrayTrait::<Response>::new();
-            loop {
-                if (i == calls.len()) {
-                    break;
-                }
-                responses.append(_call_contract(calls.at(i)));
-                i += 1;
+        fn aggregateMarketData(self: @ContractState, market_address: ContractAddress, orderbook_address: ContractAddress) -> MarketData {
+            let orderbook = IOrderbookDispatcher { contract_address: orderbook_address };
+            let market = IMarketDispatcher { contract_address: market_address };
+
+            let collateral_amount = market.total_supply(expectium::types::Asset::Happens(())) * 2;
+            let (happens_resolve, not_resolve) = market.resolve_rate();
+
+            let happens_buy_orders = orderbook.get_orders(expectium::types::Asset::Happens(()), 0_u8);
+            let happens_sell_orders = orderbook.get_orders(expectium::types::Asset::Happens(()), 1_u8);
+
+            let not_buy_orders = orderbook.get_orders(expectium::types::Asset::Not(()), 0_u8);
+            let not_sell_orders = orderbook.get_orders(expectium::types::Asset::Not(()), 1_u8);
+
+            let orders: OrdersData = OrdersData {
+                happens_buy: happens_buy_orders,
+                happens_sell: happens_sell_orders,
+                not_buy: not_buy_orders,
+                not_sell: not_sell_orders
             };
 
-            return responses.span();
-        }
-    }
-
-    fn _call_contract(call: @Call) -> Response {
-        let result = call_contract_syscall(*call.contract, *call.entrypoint, call.calldata.span());
-        let mut call_response = ArrayTrait::<felt252>::new().span();
-
-        let call_status = match result {
-            Result::Ok(x) => {
-                call_response = x;
-                true
-            },
-            Result::Err(_) => false
-        };
-
-        Response {
-            contract: *call.contract,
-            status: call_status,
-            result: call_response
+            MarketData {
+                collateral_amount, happens_resolve, not_resolve, orders
+            }
         }
     }
 }

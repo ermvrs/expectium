@@ -1,5 +1,5 @@
 use starknet::{ContractAddress, ClassHash};
-use expectium::types::{Asset, PlatformFees, Call, Response};
+use expectium::types::{Asset, PlatformFees, MarketData, OrdersData};
 
 #[starknet::interface]
 trait IOrderbook<TContractState> {
@@ -109,5 +109,5 @@ trait IDistributor<TContractState> {
 
 #[starknet::interface]
 trait IMulticall<TContractState> {
-    fn multicall(self: @TContractState, calls: Array<Call>) -> Span<Response>;
+    fn aggregateMarketData(self: @TContractState, market_address: ContractAddress, orderbook_address: ContractAddress) -> MarketData;
 }
