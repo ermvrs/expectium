@@ -4,7 +4,7 @@ Factory : 0x055666f4d0d45e6719c5ed07cf4d7b6eaeccf3e41df4784e5b158e82bac7cb18
 Distributor : 0x010828b95605ffcf55549ff5d926cc784cdda3d78c1a59abccc5f5f1b60f05d2
 Market : 0x06a0e23e1788ad809b6c0e1f8535b81e85cbf6c4ced5183f189e4d4bcc31a80e
 Orderbook : 0x04e0dcccb2015dda969f7482874cfee174a81301759450358c1b57aba0a836a9
-Multicall : 0x043b453c6484fdf09bfa52b667061166681380ee12077bc7d05dbbb7dabcda59
+Multicall : 0x06106be8ed30d2cb9f1272610a9f87165231ba3f38d3b31958d14c3374ea789b
 
 ###### Contracts ######
 
@@ -32,7 +32,7 @@ starkli deploy --account ./account 0x04e0dcccb2015dda969f7482874cfee174a81301759
 Deployed Address : 0x00b0cc3c0cbe68f9e67c2306946ddef0939c894423b48f360bdecdffdc633e2f
 
 5) Multicall()
-Deployed Address : 0x051b23f6a71fa1a0ac35082f18d2330f9cb00c3723f9e5fa247d17a7b4d4b1c6
+Deployed Address : 0x01b28f3cebe13e1c37463d890471ee275b91e6634cec44bd17680a27df25a5eb
 
 ###### Markets #######
 

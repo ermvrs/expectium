@@ -1,5 +1,5 @@
 use starknet::{ContractAddress, ClassHash};
-use expectium::types::{Asset, PlatformFees, MarketData, OrdersData};
+use expectium::types::{Asset, PlatformFees, MarketData, OrdersData, UserData};
 
 #[starknet::interface]
 trait IOrderbook<TContractState> {
@@ -109,6 +109,7 @@ trait IDistributor<TContractState> {
 
 #[starknet::interface]
 trait IMulticall<TContractState> {
-    fn aggregateMarketData(self: @TContractState, market_address: ContractAddress, orderbook_address: ContractAddress) -> MarketData;
+    fn aggregateUserData(self: @TContractState, user: ContractAddress, market: ContractAddress, orderbook: ContractAddress) -> UserData;
+    fn aggregateMarketData(self: @TContractState, market: ContractAddress, orderbook: ContractAddress) -> MarketData;
     fn aggregateMultipleMarketsData(self: @TContractState, orderbooks: Array<ContractAddress>) -> Array<MarketData>;
 }

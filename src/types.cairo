@@ -14,6 +14,21 @@ struct OrdersData {
     not_sell: Array<felt252>
 }
 
+#[derive(Drop, Serde)]
+struct UserData {
+    happens_balance: u256,
+    not_balance: u256,
+    user_orders: UserOrders
+}
+
+#[derive(Drop, Serde)]
+struct UserOrders {
+    happens_buy: Array<felt252>,
+    happens_sell: Array<felt252>,
+    not_buy: Array<felt252>,
+    not_sell: Array<felt252>
+}
+
 #[derive(Drop, Copy, starknet::Store)]
 struct Order {
     order_id : u32,
@@ -23,17 +38,19 @@ struct Order {
     status: OrderStatus
 }
 
+#[derive(Copy, Drop, Serde, starknet::Store)]
+struct PlatformFees {
+    maker: u32,
+    taker: u32
+}
+
 #[derive(Copy, Drop, Serde, PartialEq)]
 enum FeeType {
     Maker: (),
     Taker: (),
 }
 
-#[derive(Copy, Drop, Serde, starknet::Store)]
-struct PlatformFees {
-    maker: u32,
-    taker: u32
-}
+
 
 #[derive(Copy, Drop, Serde, PartialEq)]
 enum Asset {
