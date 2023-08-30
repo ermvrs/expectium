@@ -1,0 +1,17 @@
+Testnet final
+Statistics with orderbook support
+#################### Class Hash #####################
+Orderbook :     0x06198871958f0583bdfcc7343252dd82cb95ab454db25a0ff6d138baf231aa4b
+Statistics:     0x024480dbacb2b0fa8456a0a28186b55f9589630ac947c71530a3bb512c880cf5
+Market :        0x06a0e23e1788ad809b6c0e1f8535b81e85cbf6c4ced5183f189e4d4bcc31a80e
+Factory :       0x055666f4d0d45e6719c5ed07cf4d7b6eaeccf3e41df4784e5b158e82bac7cb18
+Multicall :     0x00b7bf7c9b981236e80a7f1158d09a0b783e24dc904c1a8754b16ee7bb0649bc
+Distributor :   0x010828b95605ffcf55549ff5d926cc784cdda3d78c1a59abccc5f5f1b60f05d2
+
+
+Deploys :
+
+Statistics : 0x007d09ca72d6542965e69345f420cf2574fa932b9b10dc6d8a542773459ab04f
+Multicall : 0x0106b765213052d0fdd07689312e2eb38369b2679fd4fac1daf083d3e7a18004
+
+Upgrade existing orderbooks to -> 0x06198871958f0583bdfcc7343252dd82cb95ab454db25a0ff6d138baf231aa4b

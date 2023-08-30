@@ -3,7 +3,10 @@ struct MarketData {
     collateral_amount: u256,
     happens_resolve: u16,
     not_resolve: u16,
-    orders: OrdersData
+    orders: OrdersData,
+    last_trades: Array<felt252>,
+    volume: u256,
+    trades_count: u64
 }
 
 #[derive(Drop, Serde)]

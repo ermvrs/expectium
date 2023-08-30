@@ -6,7 +6,9 @@ mod Multicall {
     use result::ResultTrait;
     use clone::Clone;
 
-    use expectium::interfaces::{IMulticall, IMarketDispatcher, IMarketDispatcherTrait, IOrderbookDispatcher, IOrderbookDispatcherTrait};
+    use expectium::interfaces::{IMulticall, IMarketDispatcher, IMarketDispatcherTrait, 
+                                IOrderbookDispatcher, IOrderbookDispatcherTrait,
+                                IStatisticsDispatcher, IStatisticsDispatcherTrait};
     use expectium::types::{MarketData, OrdersData, UserData, UserOrders};
 
     #[storage]
@@ -19,11 +21,11 @@ mod Multicall {
             _aggregate_user_data(user, market, orderbook)
         }
 
-        fn aggregateMarketData(self: @ContractState, market: ContractAddress, orderbook: ContractAddress) -> MarketData {
-            _aggregate_market_data(market, orderbook)
+        fn aggregateMarketData(self: @ContractState, market: ContractAddress, orderbook: ContractAddress, statistics: ContractAddress) -> MarketData {
+            _aggregate_market_data(statistics, market, orderbook)
         }
 
-        fn aggregateMultipleMarketsData(self: @ContractState, orderbooks: Array<ContractAddress>) -> Array<MarketData> {
+        fn aggregateMultipleMarketsData(self: @ContractState, statistics: ContractAddress, orderbooks: Array<ContractAddress>) -> Array<MarketData> {
             let mut _orderbooks = orderbooks.clone();
             let mut result = ArrayTrait::<MarketData>::new();
             loop {
@@ -31,7 +33,7 @@ mod Multicall {
                     Option::Some(v) => {
                         let orderbook = IOrderbookDispatcher { contract_address: v };
                         let market_address = orderbook.market();
-                        let data = _aggregate_market_data(market_address, v);
+                        let data = _aggregate_market_data(statistics, market_address, v);
                         result.append(data);
                     },
                     Option::None(()) => {
@@ -44,9 +46,14 @@ mod Multicall {
         }
     }
 
-    fn _aggregate_market_data(market_address: ContractAddress, orderbook_address: ContractAddress) -> MarketData {
+    fn _aggregate_market_data(statistics_address: ContractAddress, market_address: ContractAddress, orderbook_address: ContractAddress) -> MarketData {
         let orderbook = IOrderbookDispatcher { contract_address: orderbook_address };
         let market = IMarketDispatcher { contract_address: market_address };
+        let statistics = IStatisticsDispatcher { contract_address: statistics_address };
+
+        let last_trades: Array<felt252> = statistics.get_trades(orderbook_address);
+        let trades_count = statistics.get_trades_count(orderbook_address);
+        let volume = statistics.get_volume(orderbook_address);
 
         let collateral_amount = market.total_supply(expectium::types::Asset::Happens(())) * 2;
         let (happens_resolve, not_resolve) = market.resolve_rate();
@@ -64,7 +71,7 @@ mod Multicall {
             not_sell: not_sell_orders
         };
 
-        MarketData { collateral_amount, happens_resolve, not_resolve, orders }
+        MarketData { collateral_amount, happens_resolve, not_resolve, orders, volume, trades_count, last_trades }
     }
 
     fn _aggregate_user_data(user: ContractAddress, market_address: ContractAddress, orderbook_address: ContractAddress) -> UserData {

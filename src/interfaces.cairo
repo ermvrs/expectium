@@ -125,6 +125,6 @@ trait IStatistics<TContractState> {
 #[starknet::interface]
 trait IMulticall<TContractState> {
     fn aggregateUserData(self: @TContractState, user: ContractAddress, market: ContractAddress, orderbook: ContractAddress) -> UserData;
-    fn aggregateMarketData(self: @TContractState, market: ContractAddress, orderbook: ContractAddress) -> MarketData;
-    fn aggregateMultipleMarketsData(self: @TContractState, orderbooks: Array<ContractAddress>) -> Array<MarketData>;
+    fn aggregateMarketData(self: @TContractState, market: ContractAddress, orderbook: ContractAddress, statistics: ContractAddress) -> MarketData;
+    fn aggregateMultipleMarketsData(self: @TContractState, statistics: ContractAddress, orderbooks: Array<ContractAddress>) -> Array<MarketData>;
 }
