@@ -25,7 +25,8 @@ mod Statistics {
     fn constructor(ref self: ContractState, operator: ContractAddress) {
         self.operator.write(operator);
     }
-
+    
+    #[external(v0)]
     impl Statistics of IStatistics<ContractState> {
         // view
         fn get_volume(self: @ContractState, orderbook: ContractAddress) -> u256 {
