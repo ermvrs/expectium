@@ -2,6 +2,7 @@
 mod Multicall {
     use starknet::{call_contract_syscall, ContractAddress};
     use array::{ArrayTrait, SpanTrait};
+    use traits::{TryInto,Into};
     use result::ResultTrait;
     use clone::Clone;
 

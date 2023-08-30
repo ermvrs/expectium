@@ -29,6 +29,15 @@ struct UserOrders {
     not_sell: Array<felt252>
 }
 
+#[derive(Drop, Serde)]
+struct Trade {
+    asset: Asset,
+    price: u16,
+    side: u8,
+    amount: u128,
+    date: u64
+}
+
 #[derive(Drop, Copy, starknet::Store)]
 struct Order {
     order_id : u32,

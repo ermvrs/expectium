@@ -3,3 +3,4 @@ mod market;
 mod distributor;
 mod factory;
 mod multicall;
+mod statistics;

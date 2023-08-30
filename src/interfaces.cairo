@@ -17,12 +17,14 @@ trait IOrderbook<TContractState> {
     fn market(self: @TContractState) -> ContractAddress;
     fn operator(self: @TContractState) -> ContractAddress;
     fn distributor(self: @TContractState) -> ContractAddress;
+    fn statistics(self: @TContractState) -> ContractAddress;
 
     // operators
     fn emergency_toggle(ref self: TContractState);
     fn refresh_distributor_approval(ref self: TContractState);
     fn set_fees(ref self: TContractState, fees: PlatformFees);
     fn upgrade_contract(ref self: TContractState, new_class: ClassHash);
+    fn set_statistics_contract(ref self: TContractState, new_address: ContractAddress);
 }
 
 #[starknet::interface]
@@ -105,6 +107,19 @@ trait IDistributor<TContractState> {
     fn register_token(ref self: TContractState, token: ContractAddress);
     fn upgrade_contract(ref self: TContractState, new_class: ClassHash);
     fn transfer_operator(ref self: TContractState, new_operator: ContractAddress);
+}
+
+#[starknet::interface]
+trait IStatistics<TContractState> {
+    fn insert_trade(ref self: TContractState, asset: Asset, price: u16, amount: u256, taker_side: u8);
+    // view
+    fn get_volume(self: @TContractState, orderbook: ContractAddress) -> u256;
+    fn get_trades_count(self: @TContractState, orderbook: ContractAddress) -> u64;
+    fn get_trades(self: @TContractState, orderbook: ContractAddress) -> Array<felt252>;
+    // operator
+    fn register_market(ref self: TContractState, orderbook: ContractAddress, market: ContractAddress);
+    fn transfer_operator(ref self: TContractState, new_operator: ContractAddress);
+    fn upgrade_contract(ref self: TContractState, new_class: ClassHash);
 }
 
 #[starknet::interface]

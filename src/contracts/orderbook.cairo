@@ -6,7 +6,8 @@ mod Orderbook {
     use expectium::implementations::{StoreFelt252Array, StoreU32Array, AssetLegacyHash};
     use expectium::interfaces::{IOrderbook, IMarketDispatcher, IMarketDispatcherTrait, 
                                 IERC20Dispatcher, IERC20DispatcherTrait, 
-                                IDistributorDispatcher, IDistributorDispatcherTrait};
+                                IDistributorDispatcher, IDistributorDispatcherTrait,
+                                IStatisticsDispatcher, IStatisticsDispatcherTrait};
     use expectium::sort::{_sort_orders_descending, _sort_orders_ascending};
     use array::{ArrayTrait, SpanTrait};
     use zeroable::Zeroable;
@@ -52,6 +53,7 @@ mod Orderbook {
     #[storage]
     struct Storage {
         market: ContractAddress, // connected market address
+        statistics: ContractAddress, // Statistics contract
         quote_token: ContractAddress,
         distributor: ContractAddress, // Fee distributor contract // TODO !!
         happens: LegacyMap<u8, Array<felt252>>, // 0 buy 1 sell
@@ -72,8 +74,6 @@ mod Orderbook {
         self.distributor.write(distributor);
 
         IERC20Dispatcher { contract_address: quote_token }.approve(distributor, integer::BoundedInt::max());
-
-        // TODO: approve quote token to distributor.
     }
 
     #[external(v0)]
@@ -101,6 +101,9 @@ mod Orderbook {
 
         fn distributor(self: @ContractState) -> ContractAddress {
             self.distributor.read()
+        }
+        fn statistics(self: @ContractState) -> ContractAddress {
+            self.statistics.read()
         }
 
         fn get_order_owner(self: @ContractState, order_id: u32) -> ContractAddress {
@@ -321,6 +324,13 @@ mod Orderbook {
 
             replace_class_syscall(new_class);
          }
+
+         fn set_statistics_contract(ref self: ContractState, new_address: ContractAddress) {
+            let caller = get_caller_address();
+            assert(caller == self.operator.read(), 'only operator');
+
+            self.statistics.write(new_address);
+         }
     }
 
     fn _add_user_order_ids(ref self: ContractState, user: ContractAddress, new_order_id: u32) {
@@ -415,6 +425,10 @@ mod Orderbook {
                                             asset: Asset::Happens(()), matched_amount:  u256 { high: 0, low : spent_amount},
                                             price: order.price, taker: taker, taker_side: 1_u8}
                                 ));
+
+                                _insert_trade_statistics(@self, Asset::Happens(()), order.price, spent_amount, 1);
+
+
                                 // Orderı geri eklemeye gerek yok zaten tamamlandı.
                                 continue;
                             };
@@ -449,6 +463,8 @@ mod Orderbook {
                                             asset: Asset::Happens(()), matched_amount:  u256 { high: 0, low : spent_amount},
                                             price: order.price, taker: taker, taker_side: 1_u8}
                                 ));
+
+                                _insert_trade_statistics(@self, Asset::Happens(()), order.price, spent_amount, 1);
                             };
                         },
                         Option::None(()) => {
@@ -509,6 +525,8 @@ mod Orderbook {
                                             asset: Asset::Not(()), matched_amount:  u256 { high: 0, low : spent_amount},
                                             price: order.price, taker: taker, taker_side: 1_u8}
                                 ));
+
+                                _insert_trade_statistics(@self, Asset::Not(()), order.price, spent_amount, 1);
                                 // Orderı geri eklemeye gerek yok zaten tamamlandı.
                                 continue;
                             };
@@ -543,6 +561,8 @@ mod Orderbook {
                                             asset: Asset::Not(()), matched_amount:  u256 { high: 0, low : spent_amount},
                                             price: order.price, taker: taker, taker_side: 1_u8}
                                 ));
+
+                                _insert_trade_statistics(@self, Asset::Not(()), order.price, spent_amount, 1);
                             };
                         },
                         Option::None(()) => {
@@ -617,6 +637,8 @@ mod Orderbook {
                                             price: order.price, taker: taker, taker_side: 0_u8}
                                 ));
 
+                                _insert_trade_statistics(@self, Asset::Happens(()), order.price, spent_amount, 0);
+
                                 continue;
                             };
 
@@ -650,6 +672,8 @@ mod Orderbook {
                                             asset: Asset::Happens(()), matched_amount:  u256 { high: 0, low : spent_amount},
                                             price: order.price, taker: taker, taker_side: 0_u8}
                                 ));
+
+                                _insert_trade_statistics(@self, Asset::Happens(()), order.price, spent_amount, 0);
                             };
                         },
                         Option::None(()) => {
@@ -715,6 +739,8 @@ mod Orderbook {
                                             price: order.price, taker: taker, taker_side: 0_u8}
                                 ));
 
+                                _insert_trade_statistics(@self, Asset::Not(()), order.price, spent_amount, 0);
+
                                 continue;
                             };
 
@@ -748,6 +774,8 @@ mod Orderbook {
                                             asset: Asset::Not(()), matched_amount:  u256 { high: 0, low : spent_amount},
                                             price: order.price, taker: taker, taker_side: 0_u8}
                                 ));
+
+                                _insert_trade_statistics(@self, Asset::Not(()), order.price, spent_amount, 0);
                             };
                         },
                         Option::None(()) => {
@@ -1000,5 +1028,9 @@ mod Orderbook {
                 return (fee_deducted, fee_amount);
             }
         }
+    }
+
+    fn _insert_trade_statistics(self: @ContractState, asset: Asset, price: u16, amount: u128, taker_side: u8) {
+        let statistics = IStatisticsDispatcher { contract_address: self.statistics.read() };
     }
 }

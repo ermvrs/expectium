@@ -2,9 +2,20 @@ use integer::{u256_from_felt252};
 use traits::{Into, TryInto};
 use result::ResultTrait;
 use option::OptionTrait;
-use expectium::types::{Order};
-use expectium::constants::{SHIFT_32, SHIFT_96, SHIFT_224, SHIFT_240, UNSHIFT_32, UNSHIFT_64, UNSHIFT_128, UNSHIFT_16, UNSHIFT_8};
-use expectium::implementations::{OrderStatusIntoU256, OrderStatusIntoFelt252, Felt252TryIntoOrderStatus};
+use expectium::types::{Order, Trade};
+use expectium::constants::{SHIFT_32, SHIFT_96, SHIFT_128, SHIFT_192, SHIFT_208, SHIFT_216, SHIFT_224, SHIFT_240, 
+                        UNSHIFT_32, UNSHIFT_64, UNSHIFT_128, UNSHIFT_16, UNSHIFT_8};
+use expectium::implementations::{OrderStatusIntoU256, OrderStatusIntoFelt252, Felt252TryIntoOrderStatus, AssetIntoFelt252};
+
+fn pack_trade(trade: Trade) -> felt252 {
+    let mut shifted: u256 = trade.amount.into(); // u128
+    shifted = shifted | (u256_from_felt252(trade.date.into()) * SHIFT_128);
+    shifted = shifted | (u256_from_felt252(trade.price.into()) * SHIFT_192);
+    shifted = shifted | (u256_from_felt252(trade.side.into()) * SHIFT_208);
+    shifted = shifted | (u256_from_felt252(trade.asset.into()) * SHIFT_216);
+
+    shifted.try_into().unwrap()
+}
 
 fn pack_order(order: Order) -> felt252 { // TEST EDİLDİ DOĞRU GİBİ DURUYOR.
     let mut shifted: u256 = order.order_id.into(); // u32
@@ -17,7 +28,6 @@ fn pack_order(order: Order) -> felt252 { // TEST EDİLDİ DOĞRU GİBİ DURUYOR.
 }
 
 fn unpack_order(packed_order: felt252) -> Order { // TEST EDİLDİ DOĞRU GİBİ DURUYOR. EN YÜKSEK DEĞERLERLE TEST EDİLMELİ.
-    // TODO
     let unshifted: u256 = packed_order.into();
 
     let order_id: u32 = (unshifted & UNSHIFT_32).try_into().unwrap();
