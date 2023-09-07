@@ -96,7 +96,7 @@ impl StoreU32Array of Store<Array<u32>> {
                 Option::Some(element) => {
                     Store::<u32>::write_at_offset(
                         address_domain, base, offset, element
-                    )?;
+                    ).unwrap();
                     offset += Store::<u32>::size();
                 },
                 Option::None(_) => {
@@ -160,7 +160,7 @@ impl StoreFelt252Array of Store<Array<felt252>> {
                 Option::Some(element) => {
                     Store::<felt252>::write_at_offset(
                         address_domain, base, offset, element
-                    )?;
+                    ).unwrap();
                     offset += Store::<felt252>::size();
                 },
                 Option::None(_) => {

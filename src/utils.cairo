@@ -9,7 +9,7 @@ use expectium::implementations::{OrderStatusIntoU256, OrderStatusIntoFelt252, Fe
 
 fn pack_trade(trade: Trade) -> felt252 {
     let mut shifted: u256 = trade.amount.into(); // u128
-    shifted = shifted | (u256_from_felt252(trade.date.into()) * SHIFT_128);
+    shifted = shifted | (u256_from_felt252(trade.date.into()) * SHIFT_128); 
     shifted = shifted | (u256_from_felt252(trade.price.into()) * SHIFT_192);
     shifted = shifted | (u256_from_felt252(trade.side.into()) * SHIFT_208);
     shifted = shifted | (u256_from_felt252(trade.asset.into()) * SHIFT_216);

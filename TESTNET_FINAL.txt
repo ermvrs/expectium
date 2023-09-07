@@ -2,7 +2,7 @@ Testnet final
 Statistics with orderbook support
 #################### Class Hash #####################
 Orderbook :     0x049633661227d73106600dd9f16759f15f6ddb8541975bd94b2d65e5f75b36b3
-Statistics:     0x07f5e7e9036527008b4e93728569cc3287cfbdc63425a9c8cd37675f53c52e4f
+Statistics:     0x07ce9883b8546adb2ad1065cdb12aade7357f0c54491f9dee670da71501d844d
 Market :        0x06a0e23e1788ad809b6c0e1f8535b81e85cbf6c4ced5183f189e4d4bcc31a80e
 Factory :       0x055666f4d0d45e6719c5ed07cf4d7b6eaeccf3e41df4784e5b158e82bac7cb18
 Multicall :     0x00b7bf7c9b981236e80a7f1158d09a0b783e24dc904c1a8754b16ee7bb0649bc

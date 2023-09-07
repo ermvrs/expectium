@@ -4,6 +4,7 @@ mod Factory {
     use expectium::interfaces::{IMarketDispatcher, IMarketDispatcherTrait, IFactory};
     use zeroable::Zeroable;
     use array::{ArrayTrait, SpanTrait};
+    use result::ResultTrait;
     use traits::Into;
 
     #[event]
@@ -56,7 +57,7 @@ mod Factory {
             constructor.append(resolver.into());
 
             let result = deploy_syscall(self.current_class.read(), current_id.into(), constructor.span(), false);
-            let (deployed_address, _) = result.unwrap_syscall();
+            let (deployed_address, _) = result.unwrap();
 
             self.markets.write(current_id, deployed_address);
             self.is_market.write(deployed_address, true);
