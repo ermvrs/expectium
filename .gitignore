@@ -2,3 +2,6 @@
 .vscode/settings.json
 deploy_starkli.txt
 account
+
+TESTNET_FINAL.txt
+TESTNET.txt
