@@ -111,11 +111,15 @@ trait IDistributor<TContractState> {
 
 #[starknet::interface]
 trait IStatistics<TContractState> {
-    fn insert_trade(ref self: TContractState, asset: Asset, price: u16, amount: u256, taker_side: u8);
+    fn insert_trade(ref self: TContractState, asset: Asset, price: u16, amount: u256, taker_side: u8, maker: ContractAddress, taker: ContractAddress);
     // view
     fn get_volume(self: @TContractState, orderbook: ContractAddress) -> u256;
     fn get_trades_count(self: @TContractState, orderbook: ContractAddress) -> u64;
     fn get_trades(self: @TContractState, orderbook: ContractAddress) -> Array<felt252>;
+    fn get_user_total_trades_count(self: @TContractState, user: ContractAddress) -> u64;
+    fn get_user_total_volume(self: @TContractState, user: ContractAddress) -> u256;
+    fn get_user_market_trades_count(self: @TContractState, user: ContractAddress, orderbook: ContractAddress) -> u64;
+    fn get_user_market_volume(self: @TContractState, user: ContractAddress, orderbook: ContractAddress) -> u256;
     // operator
     fn register_market(ref self: TContractState, orderbook: ContractAddress, market: ContractAddress);
     fn transfer_operator(ref self: TContractState, new_operator: ContractAddress);
@@ -124,7 +128,7 @@ trait IStatistics<TContractState> {
 
 #[starknet::interface]
 trait IMulticall<TContractState> {
-    fn aggregateUserData(self: @TContractState, user: ContractAddress, market: ContractAddress, orderbook: ContractAddress) -> UserData;
+    fn aggregateUserData(self: @TContractState, user: ContractAddress, market: ContractAddress, orderbook: ContractAddress, statistics: ContractAddress) -> UserData;
     fn aggregateMarketData(self: @TContractState, market: ContractAddress, orderbook: ContractAddress, statistics: ContractAddress) -> MarketData;
     fn aggregateMultipleMarketsData(self: @TContractState, statistics: ContractAddress, orderbooks: Array<ContractAddress>) -> Array<MarketData>;
 }

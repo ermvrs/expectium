@@ -17,8 +17,8 @@ mod Multicall {
     // Todo multicall düzenle, market vs okuyabilsin
     #[external(v0)]
     impl Multicall of IMulticall<ContractState> {
-        fn aggregateUserData(self: @ContractState, user: ContractAddress, market: ContractAddress, orderbook: ContractAddress) -> UserData {
-            _aggregate_user_data(user, market, orderbook)
+        fn aggregateUserData(self: @ContractState, user: ContractAddress, market: ContractAddress, orderbook: ContractAddress, statistics: ContractAddress) -> UserData {
+            _aggregate_user_data(user, market, orderbook, statistics)
         }
 
         fn aggregateMarketData(self: @ContractState, market: ContractAddress, orderbook: ContractAddress, statistics: ContractAddress) -> MarketData {
@@ -74,9 +74,16 @@ mod Multicall {
         MarketData { collateral_amount, happens_resolve, not_resolve, orders, volume, trades_count, last_trades }
     }
 
-    fn _aggregate_user_data(user: ContractAddress, market_address: ContractAddress, orderbook_address: ContractAddress) -> UserData {
+    fn _aggregate_user_data(user: ContractAddress, market_address: ContractAddress, orderbook_address: ContractAddress, statistics_address: ContractAddress) -> UserData {
         let orderbook = IOrderbookDispatcher { contract_address: orderbook_address };
         let market = IMarketDispatcher { contract_address: market_address };
+        let statistics = IStatisticsDispatcher { contract_address: statistics_address };
+
+        let user_total_trades = statistics.get_user_total_trades_count(user);
+        let user_total_volume = statistics.get_user_total_volume(user);
+
+        let user_market_trades = statistics.get_user_market_trades_count(user, orderbook_address);
+        let user_market_volume = statistics.get_user_market_volume(user, orderbook_address);
 
         let happens_balance = market.balance_of(user, expectium::types::Asset::Happens(()));
         let not_balance = market.balance_of(user, expectium::types::Asset::Not(()));
@@ -123,6 +130,7 @@ mod Multicall {
         let user_orders = UserOrders {
             happens_buy, happens_sell, not_buy, not_sell
         };
-        UserData { happens_balance, not_balance, user_orders }
+
+        UserData {user_market_volume, user_market_trades, user_total_volume, user_total_trades, happens_balance, not_balance, user_orders }
     }
 }

@@ -426,7 +426,7 @@ mod Orderbook {
                                             price: order.price, taker: taker, taker_side: 1_u8}
                                 ));
 
-                                _insert_trade_statistics(@self, Asset::Happens(()), order.price, spent_amount, 1);
+                                _insert_trade_statistics(@self, Asset::Happens(()), order.price, spent_amount, 1, order_owner, taker);
 
 
                                 // Orderı geri eklemeye gerek yok zaten tamamlandı.
@@ -464,7 +464,7 @@ mod Orderbook {
                                             price: order.price, taker: taker, taker_side: 1_u8}
                                 ));
 
-                                _insert_trade_statistics(@self, Asset::Happens(()), order.price, spent_amount, 1);
+                                _insert_trade_statistics(@self, Asset::Happens(()), order.price, spent_amount, 1, order_owner, taker);
                             };
                         },
                         Option::None(()) => {
@@ -526,7 +526,7 @@ mod Orderbook {
                                             price: order.price, taker: taker, taker_side: 1_u8}
                                 ));
 
-                                _insert_trade_statistics(@self, Asset::Not(()), order.price, spent_amount, 1);
+                                _insert_trade_statistics(@self, Asset::Not(()), order.price, spent_amount, 1, order_owner, taker);
                                 // Orderı geri eklemeye gerek yok zaten tamamlandı.
                                 continue;
                             };
@@ -562,7 +562,7 @@ mod Orderbook {
                                             price: order.price, taker: taker, taker_side: 1_u8}
                                 ));
 
-                                _insert_trade_statistics(@self, Asset::Not(()), order.price, spent_amount, 1);
+                                _insert_trade_statistics(@self, Asset::Not(()), order.price, spent_amount, 1, order_owner, taker);
                             };
                         },
                         Option::None(()) => {
@@ -637,7 +637,7 @@ mod Orderbook {
                                             price: order.price, taker: taker, taker_side: 0_u8}
                                 ));
 
-                                _insert_trade_statistics(@self, Asset::Happens(()), order.price, spent_amount, 0);
+                                _insert_trade_statistics(@self, Asset::Happens(()), order.price, spent_amount, 0, order_owner, taker);
 
                                 continue;
                             };
@@ -673,7 +673,7 @@ mod Orderbook {
                                             price: order.price, taker: taker, taker_side: 0_u8}
                                 ));
 
-                                _insert_trade_statistics(@self, Asset::Happens(()), order.price, spent_amount, 0);
+                                _insert_trade_statistics(@self, Asset::Happens(()), order.price, spent_amount, 0, order_owner, taker);
                             };
                         },
                         Option::None(()) => {
@@ -739,7 +739,7 @@ mod Orderbook {
                                             price: order.price, taker: taker, taker_side: 0_u8}
                                 ));
 
-                                _insert_trade_statistics(@self, Asset::Not(()), order.price, spent_amount, 0);
+                                _insert_trade_statistics(@self, Asset::Not(()), order.price, spent_amount, 0, order_owner, taker);
 
                                 continue;
                             };
@@ -775,7 +775,7 @@ mod Orderbook {
                                             price: order.price, taker: taker, taker_side: 0_u8}
                                 ));
 
-                                _insert_trade_statistics(@self, Asset::Not(()), order.price, spent_amount, 0);
+                                _insert_trade_statistics(@self, Asset::Not(()), order.price, spent_amount, 0, order_owner, taker);
                             };
                         },
                         Option::None(()) => {
@@ -1030,9 +1030,9 @@ mod Orderbook {
         }
     }
 
-    fn _insert_trade_statistics(self: @ContractState, asset: Asset, price: u16, amount: u128, taker_side: u8) {
+    fn _insert_trade_statistics(self: @ContractState, asset: Asset, price: u16, amount: u128, taker_side: u8, maker: ContractAddress, taker: ContractAddress) {
         let statistics = IStatisticsDispatcher { contract_address: self.statistics.read() };
 
-        statistics.insert_trade(asset, price, u256 { high: 0, low: amount }, taker_side);
+        statistics.insert_trade(asset, price, u256 { high: 0, low: amount }, taker_side, maker, taker);
     }
 }

@@ -18,7 +18,12 @@ mod Statistics {
         orderbooks_market: LegacyMap<ContractAddress, ContractAddress>, // Orderbook -> Market
         volumes: LegacyMap<ContractAddress, u256>, // Orderbook -> Volume
         trades_count: LegacyMap<ContractAddress, u64>, // Orderbook -> trade count
-        last_trades: LegacyMap<ContractAddress, Array<felt252>>
+        last_trades: LegacyMap<ContractAddress, Array<felt252>>,
+        user_total_trades_count: LegacyMap<ContractAddress, u64>, // User -> trade count
+        user_total_volume: LegacyMap<ContractAddress, u256>, // User -> Volume
+        user_market_trades_count: LegacyMap<(ContractAddress, ContractAddress), u64>, // Orderbook -> User -> trade count
+        user_market_volume: LegacyMap<(ContractAddress, ContractAddress), u256>, // Orderbook -> User -> volume
+        // Volume ve trade sayısı sadece emir eşleşince değişir.
     }
 
     #[constructor]
@@ -41,13 +46,31 @@ mod Statistics {
             self.last_trades.read(orderbook)
         }
 
+        fn get_user_total_trades_count(self: @ContractState, user: ContractAddress) -> u64 {
+            self.user_total_trades_count.read(user)
+        }
+
+        fn get_user_total_volume(self: @ContractState, user: ContractAddress) -> u256 {
+            self.user_total_volume.read(user)
+        }
+
+        fn get_user_market_trades_count(self: @ContractState, user: ContractAddress, orderbook: ContractAddress) -> u64 {
+            self.user_market_trades_count.read((orderbook, user))
+        }
+
+        fn get_user_market_volume(self: @ContractState, user: ContractAddress, orderbook: ContractAddress) -> u256 {
+            self.user_market_volume.read((orderbook, user))
+        }
+
         // external writes
-        fn insert_trade(ref self: ContractState, asset: Asset, price: u16, amount: u256, taker_side: u8) {
+        fn insert_trade(ref self: ContractState, asset: Asset, price: u16, amount: u256, taker_side: u8, maker: ContractAddress, taker: ContractAddress) {
             let orderbook = get_caller_address();
             assert(self.orderbooks.read(orderbook), 'orderbook not registered.');
             let market = self.orderbooks_market.read(orderbook);
 
             let volume = (amount * price.into()) / 10000;
+
+            _update_user_stats(ref self, maker, taker, volume, orderbook);
 
             self.volumes.write(orderbook, self.volumes.read(orderbook) + volume);
             self.trades_count.write(orderbook, self.trades_count.read(orderbook) + 1);
@@ -101,5 +124,20 @@ mod Statistics {
     fn _assert_only_operator(self: @ContractState, caller: ContractAddress) {
         let operator = self.operator.read();
         assert(operator == caller, 'only operator');
+    }
+
+    fn _update_user_stats(ref self: ContractState, maker: ContractAddress, taker: ContractAddress, volume: u256, orderbook: ContractAddress) {
+
+        self.user_total_trades_count.write(maker, self.user_total_trades_count.read(maker) + 1);
+        self.user_total_trades_count.write(taker, self.user_total_trades_count.read(taker) + 1);
+
+        self.user_total_volume.write(maker, self.user_total_volume.read(maker) + volume);
+        self.user_total_volume.write(taker, self.user_total_volume.read(taker) + volume);
+
+        self.user_market_trades_count.write((orderbook, maker), self.user_market_trades_count.read((orderbook, maker)) + 1);
+        self.user_market_trades_count.write((orderbook, taker), self.user_market_trades_count.read((orderbook, taker)) + 1);
+
+        self.user_market_volume.write((orderbook, maker), self.user_market_volume.read((orderbook, maker)) + volume);
+        self.user_market_volume.write((orderbook, taker), self.user_market_volume.read((orderbook, taker)) + volume);
     }
 }

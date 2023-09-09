@@ -19,6 +19,10 @@ struct OrdersData {
 
 #[derive(Drop, Serde)]
 struct UserData {
+    user_market_volume: u256,
+    user_market_trades: u64,
+    user_total_volume:u256,
+    user_total_trades: u64,
     happens_balance: u256,
     not_balance: u256,
     user_orders: UserOrders
