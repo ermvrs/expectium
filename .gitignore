@@ -5,3 +5,6 @@ account
 
 TESTNET_FINAL.txt
 TESTNET.txt
+account_mainnet
+keystore
+mainnet.txt
