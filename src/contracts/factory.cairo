@@ -19,7 +19,8 @@ mod Factory {
         creator: ContractAddress,
         id: u64,
         resolver: ContractAddress,
-        address: ContractAddress
+        address: ContractAddress,
+        orderbook: ContractAddress
     }
 
     #[derive(Drop, PartialEq, starknet::Event)]
@@ -33,6 +34,8 @@ mod Factory {
         markets: LegacyMap<u64, ContractAddress>,
         is_market: LegacyMap<ContractAddress, bool>, // registered market tracking
         current_class: ClassHash, // yeni marketler bu hash ile kurulacak.
+        orderbook_class: ClassHash,
+        distributor: ContractAddress,
         operator: ContractAddress,
         market_ids: u64,
     }
@@ -62,8 +65,19 @@ mod Factory {
             self.markets.write(current_id, deployed_address);
             self.is_market.write(deployed_address, true);
 
+            // create orderbook for market
+
+            let mut orderbook_calldata = ArrayTrait::new();
+            orderbook_calldata.append(deployed_address.into());
+            orderbook_calldata.append(self.operator.read().into());
+            orderbook_calldata.append(collateral.into());
+            orderbook_calldata.append(self.distributor.read().into());
+
+            let orderbook_result = deploy_syscall(self.orderbook_class.read(), current_id.into(), orderbook_calldata.span(), false);
+            let (orderbook_deployed_address, _) = orderbook_result.unwrap();
+
             self.emit(Event::MarketCreated(
-                MarketCreated { creator: get_caller_address(), id: current_id, resolver: resolver, address: deployed_address }
+                MarketCreated { creator: get_caller_address(), id: current_id, resolver: resolver, address: deployed_address, orderbook: orderbook_deployed_address }
             ));
 
             (current_id, deployed_address)
@@ -89,6 +103,18 @@ mod Factory {
             assert_only_operator(@self);
 
             self.current_class.write(new_hash);
+        }
+
+        fn change_orderbook_classhash(ref self: ContractState, new_hash: ClassHash) {
+            assert_only_operator(@self);
+
+            self.orderbook_class.write(new_hash);
+        }
+
+        fn change_distributor_contract(ref self: ContractState, new_distributor: ContractAddress) {
+            assert_only_operator(@self);
+
+            self.distributor.write(new_distributor);
         }
 
         fn upgrade_factory(ref self: ContractState, new_hash: ClassHash) {

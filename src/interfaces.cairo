@@ -86,6 +86,8 @@ trait IFactory<TContractState> {
     fn current_hash(self: @TContractState) -> ClassHash;
     // operators
     fn change_current_classhash(ref self: TContractState, new_hash: ClassHash);
+    fn change_orderbook_classhash(ref self: TContractState, new_hash: ClassHash);
+    fn change_distributor_contract(ref self: TContractState, new_distributor: ContractAddress);
     fn upgrade_factory(ref self: TContractState, new_hash: ClassHash);
     fn upgrade_market(ref self: TContractState, market_id: u64); // marketi mevcut hashe yükseltir.
     fn transfer_operator(ref self: TContractState, new_operator: ContractAddress);
