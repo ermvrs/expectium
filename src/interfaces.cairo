@@ -17,14 +17,12 @@ trait IOrderbook<TContractState> {
     fn market(self: @TContractState) -> ContractAddress;
     fn operator(self: @TContractState) -> ContractAddress;
     fn distributor(self: @TContractState) -> ContractAddress;
-    fn statistics(self: @TContractState) -> ContractAddress;
 
     // operators
     fn emergency_toggle(ref self: TContractState);
     fn refresh_distributor_approval(ref self: TContractState);
     fn set_fees(ref self: TContractState, fees: PlatformFees);
     fn upgrade_contract(ref self: TContractState, new_class: ClassHash);
-    fn set_statistics_contract(ref self: TContractState, new_address: ContractAddress);
 }
 
 #[starknet::interface]
@@ -124,11 +122,4 @@ trait IStatistics<TContractState> {
     fn register_market(ref self: TContractState, orderbook: ContractAddress, market: ContractAddress);
     fn transfer_operator(ref self: TContractState, new_operator: ContractAddress);
     fn upgrade_contract(ref self: TContractState, new_class: ClassHash);
-}
-
-#[starknet::interface]
-trait IMulticall<TContractState> {
-    fn aggregateUserData(self: @TContractState, user: ContractAddress, market: ContractAddress, orderbook: ContractAddress, statistics: ContractAddress) -> UserData;
-    fn aggregateMarketData(self: @TContractState, market: ContractAddress, orderbook: ContractAddress, statistics: ContractAddress) -> MarketData;
-    fn aggregateMultipleMarketsData(self: @TContractState, statistics: ContractAddress, orderbooks: Array<ContractAddress>) -> Array<MarketData>;
 }

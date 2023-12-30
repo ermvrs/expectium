@@ -181,6 +181,15 @@ impl AssetLegacyHash of LegacyHash<Asset> {
     }
 }
 
+impl AssetIntoU8 of Into<Asset, u8> {
+    fn into(self: Asset) -> u8 {
+        match self {
+            Asset::Happens(()) => 0_u8,
+            Asset::Not(()) => 1_u8,
+        }
+    }
+}
+
 impl AssetIntoFelt252 of Into<Asset, felt252> {
     fn into(self: Asset) -> felt252 {
         match self {

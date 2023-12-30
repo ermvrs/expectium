@@ -3,7 +3,7 @@ mod Market {
     use expectium::types::{Asset};
     use starknet::{ContractAddress, get_caller_address, get_contract_address, 
                     ClassHash, replace_class_syscall, get_block_timestamp};
-    use expectium::implementations::{AssetLegacyHash};
+    use expectium::implementations::{AssetLegacyHash, AssetIntoU8};
     use expectium::interfaces::{IERC20Dispatcher, IERC20DispatcherTrait, IMarket};
     use traits::{Into, TryInto};
 
@@ -71,7 +71,7 @@ mod Market {
 
     #[storage]
     struct Storage {
-        balances: LegacyMap<(Asset, ContractAddress), u256>, 
+        balances: LegacyMap<(u8, ContractAddress), u256>, 
         supplies: LegacyMap<Asset, u256>,
         allowances: LegacyMap<(ContractAddress, ContractAddress), bool>, // owner -> spender -> bool
         collateral: ContractAddress,
@@ -94,7 +94,7 @@ mod Market {
     #[external(v0)]
     impl Market of IMarket<ContractState> {
         fn balance_of(self: @ContractState, account: ContractAddress, asset: Asset) -> u256 {
-            self.balances.read((asset, account))
+            self.balances.read((asset.into(), account))
         }
 
         fn total_supply(self: @ContractState, asset: Asset) -> u256 {
@@ -139,8 +139,8 @@ mod Market {
             let caller = get_caller_address();
             _receive_collateral(ref self, caller, invest);
 
-            self.balances.write((Asset::Happens(()), caller), self.balances.read((Asset::Happens(()), caller)) + invest);
-            self.balances.write((Asset::Not(()), caller), self.balances.read((Asset::Not(()), caller)) + invest);
+            self.balances.write((Asset::Happens(()).into(), caller), self.balances.read((Asset::Happens(()).into(), caller)) + invest);
+            self.balances.write((Asset::Not(()).into(), caller), self.balances.read((Asset::Not(()).into(), caller)) + invest);
 
             self.supplies.write(Asset::Happens(()), self.supplies.read(Asset::Happens(())) + invest);
             self.supplies.write(Asset::Not(()), self.supplies.read(Asset::Not(())) + invest);
@@ -156,8 +156,8 @@ mod Market {
 
             let caller = get_caller_address();
 
-            self.balances.write((Asset::Happens(()), caller), self.balances.read((Asset::Happens(()), caller)) - shares);
-            self.balances.write((Asset::Not(()), caller), self.balances.read((Asset::Not(()), caller)) - shares);
+            self.balances.write((Asset::Happens(()).into(), caller), self.balances.read((Asset::Happens(()).into(), caller)) - shares);
+            self.balances.write((Asset::Not(()).into(), caller), self.balances.read((Asset::Not(()).into(), caller)) - shares);
 
             self.supplies.write(Asset::Happens(()), self.supplies.read(Asset::Happens(())) - shares);
             self.supplies.write(Asset::Not(()), self.supplies.read(Asset::Not(())) - shares);
@@ -174,7 +174,7 @@ mod Market {
 
             let caller = get_caller_address();
 
-            self.balances.write((asset, caller), self.balances.read((asset, caller)) - amount); // remove asset
+            self.balances.write((asset.into(), caller), self.balances.read((asset.into(), caller)) - amount); // remove asset
             self.supplies.write(asset, self.supplies.read(asset) - amount); // remove supply
 
             let resolve_ratio = self.resolve_ratio.read(asset);
@@ -230,23 +230,23 @@ mod Market {
             let caller = get_caller_address();
             assert(_is_allowed_spender(@self, from, caller), 'not allowed spender');
 
-            let owner_balance = self.balances.read((asset, from));
+            let owner_balance = self.balances.read((asset.into(), from));
             assert(owner_balance >= amount, 'amount exceeds bal');
 
-            self.balances.write((asset, from), owner_balance - amount);
-            self.balances.write((asset, to), self.balances.read((asset, to)) + amount);
+            self.balances.write((asset.into(), from), owner_balance - amount);
+            self.balances.write((asset.into(), to), self.balances.read((asset.into(), to)) + amount);
         
             self.emit(Event::Transfer(Transfer { from: from, to: to, asset: asset, amount: amount}));
         }
 
         fn transfer(ref self: ContractState, to: ContractAddress, asset: Asset, amount: u256) {
             let caller = get_caller_address();
-            let current_balance = self.balances.read((asset, caller));
+            let current_balance = self.balances.read((asset.into(), caller));
 
             assert(current_balance >= amount, 'amount exceeds bal');
 
-            self.balances.write((asset, caller), current_balance - amount);
-            self.balances.write((asset, to), self.balances.read((asset, to)) + amount);
+            self.balances.write((asset.into(), caller), current_balance - amount);
+            self.balances.write((asset.into(), to), self.balances.read((asset.into(), to)) + amount);
         
             self.emit(Event::Transfer(Transfer { from: caller, to: to, asset: asset, amount: amount}));
         }
