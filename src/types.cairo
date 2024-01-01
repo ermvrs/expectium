@@ -1,4 +1,14 @@
 #[derive(Drop, Serde)]
+struct SharesState {
+    amount: u256,
+    is_list: bool,
+    root: felt252,
+    price: u256,
+    limit_per_account: u256,
+    is_active: bool
+}
+
+#[derive(Drop, Serde)]
 struct MarketData {
     collateral_amount: u256,
     happens_resolve: u16,

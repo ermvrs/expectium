@@ -1,5 +1,5 @@
 use starknet::{ContractAddress, ClassHash};
-use expectium::types::{Asset, PlatformFees, MarketData, OrdersData, UserData};
+use expectium::types::{Asset, PlatformFees, MarketData, OrdersData, UserData, SharesState};
 
 #[starknet::interface]
 trait IOrderbook<TContractState> {
@@ -73,6 +73,7 @@ trait IShares<TContractState> {
     fn balance_of(self: @TContractState, account: ContractAddress) -> u256;
     fn owner_of(self: @TContractState, token_id: u256) -> ContractAddress;
     fn total_supply(self: @TContractState) -> u256;
+    fn get_state(self: @TContractState, state_id: u32) -> SharesState;
 }
 
 #[starknet::interface]

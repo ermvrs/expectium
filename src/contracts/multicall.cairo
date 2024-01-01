@@ -1,5 +1,12 @@
 use starknet::ContractAddress;
-use expectium::types::{MarketData, OrdersData, UserData, UserOrders};
+use expectium::types::{MarketData, OrdersData, UserData, UserOrders, SharesState};
+
+#[derive(Drop, Serde)]
+struct SharesInfoResponse {
+    total_supply: u256,
+    total_distribution: u256,
+    state: SharesState,
+}
 
 #[derive(Drop, Serde, PartialEq)]
 struct SharesUserInfoResponse {
@@ -9,6 +16,7 @@ struct SharesUserInfoResponse {
 #[starknet::interface]
 trait IMulticall<TState> {
     fn get_shares_user_info(self: @TState, shares: ContractAddress, user: ContractAddress, distributor: ContractAddress, distribution_token: ContractAddress) -> SharesUserInfoResponse; // u256 gerek yok
+    fn get_shares_info(self: @TState, shares: ContractAddress, distributor: ContractAddress, distribution_token: ContractAddress, state_id: u32) -> SharesInfoResponse;
     fn aggregateUserData(self: @TState, user: ContractAddress, market: ContractAddress, orderbook: ContractAddress) -> UserData;
     fn aggregateMarketData(self: @TState, market: ContractAddress, orderbook: ContractAddress) -> MarketData;
     fn upgrade_contract(ref self: TState, new_hash: starknet::ClassHash);
@@ -23,7 +31,7 @@ mod Multicall {
     use expectium::types::{MarketData, OrdersData, UserData, UserOrders};
     use starknet::{ContractAddress, ClassHash, get_caller_address, replace_class_syscall};
     use array::{ArrayTrait, SpanTrait};
-    use super::SharesUserInfoResponse;
+    use super::{SharesUserInfoResponse, SharesInfoResponse};
 
     #[storage]
     struct Storage {
@@ -40,6 +48,20 @@ mod Multicall {
         fn upgrade_contract(ref self: ContractState, new_hash: starknet::ClassHash) {
             assert(get_caller_address() == self.upgrader.read(), 'only operator');
             replace_class_syscall(new_hash).unwrap();
+        }
+
+        fn get_shares_info(self: @ContractState, shares: ContractAddress, distributor: ContractAddress, distribution_token: ContractAddress, state_id: u32) -> SharesInfoResponse {
+            let dispatcher = ISharesDispatcher { contract_address: shares };
+            let distributor_dispatcher = IDistributorDispatcher { contract_address: distributor };
+            let total_supply = dispatcher.total_supply();
+            let state = dispatcher.get_state(state_id);
+            let total_distribution = distributor_dispatcher.total_distribution(distribution_token);
+
+            SharesInfoResponse {
+                total_supply: total_supply,
+                total_distribution: total_distribution,
+                state: state
+            }
         }
 
         fn get_shares_user_info(self: @ContractState, shares: ContractAddress, user: ContractAddress, distributor: ContractAddress, distribution_token: ContractAddress) -> SharesUserInfoResponse {
