@@ -3,12 +3,12 @@ use expectium::types::{MarketData, OrdersData, UserData, UserOrders};
 
 #[derive(Drop, Serde, PartialEq)]
 struct SharesUserInfoResponse {
-    user_share_ids: Array<u128>
+    user_share_ids: Array<(u128, u256)> 
 }
 
 #[starknet::interface]
 trait IMulticall<TState> {
-    fn get_shares_user_info(self: @TState, shares: ContractAddress, user: ContractAddress) -> SharesUserInfoResponse; // u256 gerek yok
+    fn get_shares_user_info(self: @TState, shares: ContractAddress, user: ContractAddress, distributor: ContractAddress, distribution_token: ContractAddress) -> SharesUserInfoResponse; // u256 gerek yok
     fn aggregateUserData(self: @TState, user: ContractAddress, market: ContractAddress, orderbook: ContractAddress) -> UserData;
     fn aggregateMarketData(self: @TState, market: ContractAddress, orderbook: ContractAddress) -> MarketData;
     fn upgrade_contract(ref self: TState, new_hash: starknet::ClassHash);
@@ -18,7 +18,8 @@ trait IMulticall<TState> {
 mod Multicall {
     use expectium::interfaces::{IMarketDispatcher, IMarketDispatcherTrait, 
                                 IOrderbookDispatcher, IOrderbookDispatcherTrait,
-                                ISharesDispatcher, ISharesDispatcherTrait};
+                                ISharesDispatcher, ISharesDispatcherTrait, 
+                                IDistributorDispatcher, IDistributorDispatcherTrait};
     use expectium::types::{MarketData, OrdersData, UserData, UserOrders};
     use starknet::{ContractAddress, ClassHash, get_caller_address, replace_class_syscall};
     use array::{ArrayTrait, SpanTrait};
@@ -41,11 +42,12 @@ mod Multicall {
             replace_class_syscall(new_hash).unwrap();
         }
 
-        fn get_shares_user_info(self: @ContractState, shares: ContractAddress, user: ContractAddress) -> SharesUserInfoResponse {
+        fn get_shares_user_info(self: @ContractState, shares: ContractAddress, user: ContractAddress, distributor: ContractAddress, distribution_token: ContractAddress) -> SharesUserInfoResponse {
             let mut i = 1;
             let dispatcher = ISharesDispatcher { contract_address: shares };
+            let distributor_dispatcher = IDistributorDispatcher { contract_address: distributor };
             let total_supply = dispatcher.total_supply();
-            let mut owned_by = ArrayTrait::<u128>::new();
+            let mut owned_by = ArrayTrait::<(u128, u256)>::new();
 
             loop {
                 if(total_supply < i) {
@@ -53,7 +55,8 @@ mod Multicall {
                 }
                 let owner = dispatcher.owner_of(i.into());
                 if(owner == user) {
-                    owned_by.append(i.low);
+                    let available_claim = distributor_dispatcher.get_claimable_amount(distribution_token, i);
+                    owned_by.append((i.low, available_claim));
                 }
                 i = i + 1;
             };
