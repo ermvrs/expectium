@@ -2,24 +2,24 @@
 mod Account {
     use starknet::{ContractAddress, ClassHash};
     use expectium::types::Asset;
-    use expectium::interfaces::{IERC20Dispatcher, IERC20DispatcherTrait, 
-            IFactoryDispatcher, IFactoryDispatcherTrait,
-            IMarketDispatcher, IMarketDispatcherTrait,
-            IOrderbookDispatcher, IOrderbookDispatcherTrait,
-            IDistributorDispatcher, IDistributorDispatcherTrait};
-    use expectium::tests::mocks::interfaces::{IAccount, IMockSharesDispatcher, IMockSharesDispatcherTrait};
+    use expectium::interfaces::{
+        IERC20Dispatcher, IERC20DispatcherTrait, IFactoryDispatcher, IFactoryDispatcherTrait,
+        IMarketDispatcher, IMarketDispatcherTrait, IOrderbookDispatcher, IOrderbookDispatcherTrait,
+        IDistributorDispatcher, IDistributorDispatcherTrait
+    };
+    use expectium::tests::mocks::interfaces::{
+        IAccount, IMockSharesDispatcher, IMockSharesDispatcherTrait
+    };
 
     #[storage]
     struct Storage {}
 
     #[external(v0)]
     impl IAccountImpl of IAccount<ContractState> {
-        fn erc20_balance_of(            
-            self: @ContractState,
-            contract_address: ContractAddress,
-            account: ContractAddress
+        fn erc20_balance_of(
+            self: @ContractState, contract_address: ContractAddress, account: ContractAddress
         ) -> u256 {
-                IERC20Dispatcher { contract_address }.balanceOf(account)
+            IERC20Dispatcher { contract_address }.balanceOf(account)
         }
 
         fn erc20_transfer(
@@ -51,17 +51,13 @@ mod Account {
         }
 
         fn factory_transfer_operator(
-            self: @ContractState,
-            contract_address: ContractAddress,
-            new_operator: ContractAddress
+            self: @ContractState, contract_address: ContractAddress, new_operator: ContractAddress
         ) {
             IFactoryDispatcher { contract_address }.transfer_operator(new_operator);
         }
 
         fn factory_change_current_classhash(
-            self: @ContractState,
-            contract_address: ContractAddress,
-            new_hash: ClassHash
+            self: @ContractState, contract_address: ContractAddress, new_hash: ClassHash
         ) {
             IFactoryDispatcher { contract_address }.change_current_classhash(new_hash);
         }
@@ -76,25 +72,19 @@ mod Account {
         }
 
         fn factory_upgrade_market(
-            self: @ContractState,
-            contract_address: ContractAddress,
-            market_id: u64
+            self: @ContractState, contract_address: ContractAddress, market_id: u64
         ) {
             IFactoryDispatcher { contract_address }.upgrade_market(market_id);
         }
 
         fn market_approve(
-            self: @ContractState,
-            contract_address: ContractAddress,
-            spender: ContractAddress
+            self: @ContractState, contract_address: ContractAddress, spender: ContractAddress
         ) {
             IMarketDispatcher { contract_address }.approve(spender);
         }
 
         fn market_revoke_approval(
-            self: @ContractState,
-            contract_address: ContractAddress,
-            spender: ContractAddress
+            self: @ContractState, contract_address: ContractAddress, spender: ContractAddress
         ) {
             IMarketDispatcher { contract_address }.revoke_approval(spender);
         }
@@ -111,35 +101,25 @@ mod Account {
         }
 
         fn market_mint_shares(
-            self: @ContractState,
-            contract_address: ContractAddress,
-            amount: u256
+            self: @ContractState, contract_address: ContractAddress, amount: u256
         ) {
             IMarketDispatcher { contract_address }.mint_shares(amount);
         }
 
         fn market_merge_shares(
-            self: @ContractState,
-            contract_address: ContractAddress,
-            amount: u256
+            self: @ContractState, contract_address: ContractAddress, amount: u256
         ) {
             IMarketDispatcher { contract_address }.merge_shares(amount);
         }
 
         fn market_resolve_market(
-            self: @ContractState,
-            contract_address: ContractAddress,
-            happens: u16,
-            not: u16
+            self: @ContractState, contract_address: ContractAddress, happens: u16, not: u16
         ) {
             IMarketDispatcher { contract_address }.resolve_market(happens, not);
         }
 
         fn market_convert_shares(
-            self: @ContractState,
-            contract_address: ContractAddress,
-            asset: Asset,
-            amount: u256
+            self: @ContractState, contract_address: ContractAddress, asset: Asset, amount: u256
         ) {
             IMarketDispatcher { contract_address }.convert_shares(asset, amount);
         }
@@ -165,19 +145,13 @@ mod Account {
         }
 
         fn orderbook_cancel_buy_order(
-            self: @ContractState,
-            contract_address: ContractAddress,
-            asset: Asset,
-            order_id: u32
+            self: @ContractState, contract_address: ContractAddress, asset: Asset, order_id: u32
         ) {
             IOrderbookDispatcher { contract_address }.cancel_buy_order(asset, order_id);
         }
 
         fn orderbook_cancel_sell_order(
-            self: @ContractState,
-            contract_address: ContractAddress,
-            asset: Asset,
-            order_id: u32
+            self: @ContractState, contract_address: ContractAddress, asset: Asset, order_id: u32
         ) {
             IOrderbookDispatcher { contract_address }.cancel_sell_order(asset, order_id);
         }
@@ -191,59 +165,50 @@ mod Account {
         }
 
         fn distributor_new_distribution(
-                self: @ContractState,
-                contract_address: ContractAddress,
-                token: ContractAddress,
-                amount: u256
+            self: @ContractState,
+            contract_address: ContractAddress,
+            token: ContractAddress,
+            amount: u256
         ) {
             IDistributorDispatcher { contract_address }.new_distribution(token, amount)
         }
 
         fn distributor_claim(
-                self: @ContractState,
-                contract_address: ContractAddress,
-                token: ContractAddress,
-                share_id: u256
+            self: @ContractState,
+            contract_address: ContractAddress,
+            token: ContractAddress,
+            share_id: u256
         ) {
             IDistributorDispatcher { contract_address }.claim(token, share_id)
         }
 
         fn distributor_register_token(
-                self: @ContractState,
-                contract_address: ContractAddress,
-                token: ContractAddress
+            self: @ContractState, contract_address: ContractAddress, token: ContractAddress
         ) {
             IDistributorDispatcher { contract_address }.register_token(token)
         }
 
-        fn distributor_toggle_claims(
-                self: @ContractState,
-                contract_address: ContractAddress
-        ) {
+        fn distributor_toggle_claims(self: @ContractState, contract_address: ContractAddress) {
             IDistributorDispatcher { contract_address }.toggle_claims()
         }
 
         fn distributor_upgrade_contract(
-                self: @ContractState,
-                contract_address: ContractAddress,
-                new_class: ClassHash
+            self: @ContractState, contract_address: ContractAddress, new_class: ClassHash
         ) {
             IDistributorDispatcher { contract_address }.upgrade_contract(new_class)
         }
 
         fn distributor_transfer_operator(
-                self: @ContractState,
-                contract_address: ContractAddress,
-                new_operator: ContractAddress
+            self: @ContractState, contract_address: ContractAddress, new_operator: ContractAddress
         ) {
             IDistributorDispatcher { contract_address }.transfer_operator(new_operator)
         }
 
         fn mock_shares_set_owner(
-                self: @ContractState,
-                contract_address: ContractAddress,
-                token_id: u256,
-                owner: ContractAddress
+            self: @ContractState,
+            contract_address: ContractAddress,
+            token_id: u256,
+            owner: ContractAddress
         ) {
             IMockSharesDispatcher { contract_address }.set_owner(token_id, owner)
         }

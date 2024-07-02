@@ -64,7 +64,7 @@ mod tests {
         let unpacked_status: felt252 = 3;
 
         let sample_order: Order = Order {
-            order_id : unpacked_order_id,
+            order_id: unpacked_order_id,
             date: unpacked_date,
             amount: unpacked_amount,
             price: unpacked_price,
@@ -85,39 +85,19 @@ mod tests {
     #[available_gas(300000000)]
     fn test_ascending_sorting() {
         let sample_order_1: Order = Order {
-            order_id : 1,
-            date: 998,
-            amount: 151,
-            price: 100,
-            status: 0.try_into().unwrap()
+            order_id: 1, date: 998, amount: 151, price: 100, status: 0.try_into().unwrap()
         };
         let sample_order_2: Order = Order {
-            order_id : 2,
-            date: 998,
-            amount: 151,
-            price: 50,
-            status: 0.try_into().unwrap()
+            order_id: 2, date: 998, amount: 151, price: 50, status: 0.try_into().unwrap()
         };
         let sample_order_3: Order = Order {
-            order_id : 3,
-            date: 998,
-            amount: 151,
-            price: 20,
-            status: 0.try_into().unwrap()
+            order_id: 3, date: 998, amount: 151, price: 20, status: 0.try_into().unwrap()
         };
         let sample_order_4: Order = Order {
-            order_id : 4,
-            date: 998,
-            amount: 151,
-            price: 200,
-            status: 0.try_into().unwrap()
+            order_id: 4, date: 998, amount: 151, price: 200, status: 0.try_into().unwrap()
         };
         let sample_order_5: Order = Order {
-            order_id : 5,
-            date: 997,
-            amount: 151,
-            price: 200,
-            status: 0.try_into().unwrap()
+            order_id: 5, date: 997, amount: 151, price: 200, status: 0.try_into().unwrap()
         };
 
         let mut unsorted_array: Array<felt252> = ArrayTrait::<felt252>::new();
@@ -141,39 +121,19 @@ mod tests {
     #[available_gas(300000000)]
     fn test_descending_sorting() {
         let sample_order_1: Order = Order {
-            order_id : 1,
-            date: 998,
-            amount: 151,
-            price: 100,
-            status: 0.try_into().unwrap()
+            order_id: 1, date: 998, amount: 151, price: 100, status: 0.try_into().unwrap()
         };
         let sample_order_2: Order = Order {
-            order_id : 2,
-            date: 998,
-            amount: 151,
-            price: 50,
-            status: 0.try_into().unwrap()
+            order_id: 2, date: 998, amount: 151, price: 50, status: 0.try_into().unwrap()
         };
         let sample_order_3: Order = Order {
-            order_id : 3,
-            date: 998,
-            amount: 151,
-            price: 20,
-            status: 0.try_into().unwrap()
+            order_id: 3, date: 998, amount: 151, price: 20, status: 0.try_into().unwrap()
         };
         let sample_order_4: Order = Order {
-            order_id : 4,
-            date: 998,
-            amount: 151,
-            price: 200,
-            status: 0.try_into().unwrap()
+            order_id: 4, date: 998, amount: 151, price: 200, status: 0.try_into().unwrap()
         };
         let sample_order_5: Order = Order {
-            order_id : 5,
-            date: 997,
-            amount: 151,
-            price: 200,
-            status: 0.try_into().unwrap()
+            order_id: 5, date: 997, amount: 151, price: 200, status: 0.try_into().unwrap()
         };
 
         let mut unsorted_array: Array<felt252> = ArrayTrait::<felt252>::new();
@@ -196,7 +156,8 @@ mod tests {
     #[test]
     #[available_gas(300000000)]
     fn unpack_test_frontend() {
-        let packed: felt252 = 10783978666860255917866806034807852348683020283280573855041071299428353;
+        let packed: felt252 =
+            10783978666860255917866806034807852348683020283280573855041071299428353;
         let unpacked: Order = unpack_order(packed);
     }
 }

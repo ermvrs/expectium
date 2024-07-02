@@ -1,6 +1,9 @@
 #[starknet::contract]
 mod Factory {
-    use starknet::{ContractAddress, ClassHash, replace_class_syscall, get_caller_address, deploy_syscall, get_contract_address};
+    use starknet::{
+        ContractAddress, ClassHash, replace_class_syscall, get_caller_address, deploy_syscall,
+        get_contract_address
+    };
     use expectium::interfaces::{IMarketDispatcher, IMarketDispatcherTrait, IFactory};
     use zeroable::Zeroable;
     use array::{ArrayTrait, SpanTrait};
@@ -46,9 +49,11 @@ mod Factory {
         self.current_class.write(market_hash);
     }
 
-    #[external(v0)]
+    #[abi(embed_v0)]
     impl Factory of IFactory<ContractState> {
-        fn create_market(ref self: ContractState, resolver: ContractAddress, collateral: ContractAddress) -> (u64, ContractAddress) {
+        fn create_market(
+            ref self: ContractState, resolver: ContractAddress, collateral: ContractAddress
+        ) -> (u64, ContractAddress) {
             assert_only_operator(@self);
             let current_id = self.market_ids.read(); // first id 0
             self.market_ids.write(current_id + 1);
@@ -59,7 +64,9 @@ mod Factory {
             constructor.append(current_id.into());
             constructor.append(resolver.into());
 
-            let result = deploy_syscall(self.current_class.read(), current_id.into(), constructor.span(), false);
+            let result = deploy_syscall(
+                self.current_class.read(), current_id.into(), constructor.span(), false
+            );
             let (deployed_address, _) = result.unwrap();
 
             self.markets.write(current_id, deployed_address);
@@ -73,12 +80,23 @@ mod Factory {
             orderbook_calldata.append(collateral.into());
             orderbook_calldata.append(self.distributor.read().into());
 
-            let orderbook_result = deploy_syscall(self.orderbook_class.read(), current_id.into(), orderbook_calldata.span(), false);
+            let orderbook_result = deploy_syscall(
+                self.orderbook_class.read(), current_id.into(), orderbook_calldata.span(), false
+            );
             let (orderbook_deployed_address, _) = orderbook_result.unwrap();
 
-            self.emit(Event::MarketCreated(
-                MarketCreated { creator: get_caller_address(), id: current_id, resolver: resolver, address: deployed_address, orderbook: orderbook_deployed_address }
-            ));
+            self
+                .emit(
+                    Event::MarketCreated(
+                        MarketCreated {
+                            creator: get_caller_address(),
+                            id: current_id,
+                            resolver: resolver,
+                            address: deployed_address,
+                            orderbook: orderbook_deployed_address
+                        }
+                    )
+                );
 
             (current_id, deployed_address)
         }
@@ -132,11 +150,14 @@ mod Factory {
 
             assert(market.is_non_zero(), 'market zero');
 
-            IMarketDispatcher{ contract_address: market }.upgrade_market(latest_hash);
+            IMarketDispatcher { contract_address: market }.upgrade_market(latest_hash);
 
-            self.emit(Event::MarketUpgraded(
-                MarketUpgraded { operator: get_caller_address(), id: market_id }
-            ));
+            self
+                .emit(
+                    Event::MarketUpgraded(
+                        MarketUpgraded { operator: get_caller_address(), id: market_id }
+                    )
+                );
         }
 
         fn transfer_operator(ref self: ContractState, new_operator: ContractAddress) {

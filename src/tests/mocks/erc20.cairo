@@ -106,7 +106,6 @@ mod ERC20 {
             true
         }
 
-        
 
         fn transferFrom(
             ref self: ContractState,
@@ -129,7 +128,12 @@ mod ERC20 {
             true
         }
 
-        fn transfer_from(ref self: ContractState, sender: ContractAddress, recipient: ContractAddress, amount: u256) -> bool {
+        fn transfer_from(
+            ref self: ContractState,
+            sender: ContractAddress,
+            recipient: ContractAddress,
+            amount: u256
+        ) -> bool {
             IERC20Impl::transferFrom(ref self, sender, recipient, amount)
         }
 

@@ -48,9 +48,21 @@ struct Trade {
     date: u64
 }
 
+#[derive(Drop, Serde)]
+pub struct SharesInfoResponse {
+    total_supply: u256,
+    total_distribution: u256,
+    state: SharesState,
+}
+
+#[derive(Drop, Serde, PartialEq)]
+pub struct SharesUserInfoResponse {
+    user_share_ids: Array<(u128, u256)>
+}
+
 #[derive(Drop, Copy, starknet::Store)]
 struct Order {
-    order_id : u32,
+    order_id: u32,
     date: u64,
     amount: u128,
     price: u16,
@@ -68,8 +80,6 @@ enum FeeType {
     Maker: (),
     Taker: (),
 }
-
-
 
 #[derive(Copy, Drop, Serde, PartialEq)]
 enum Asset {

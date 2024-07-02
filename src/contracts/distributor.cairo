@@ -1,9 +1,13 @@
-use starknet::{ContractAddress, ClassHash};
-
 #[starknet::contract]
 mod Distributor {
-    use starknet::{ContractAddress, get_caller_address, get_contract_address, get_block_timestamp, ClassHash, replace_class_syscall};
-    use expectium::interfaces::{IERC20Dispatcher, IERC20DispatcherTrait, ISharesDispatcher, ISharesDispatcherTrait, IDistributor};
+    use starknet::{
+        ContractAddress, get_caller_address, get_contract_address, get_block_timestamp, ClassHash,
+        replace_class_syscall
+    };
+    use expectium::interfaces::{
+        IERC20Dispatcher, IERC20DispatcherTrait, ISharesDispatcher, ISharesDispatcherTrait,
+        IDistributor
+    };
 
     #[event]
     #[derive(Drop, starknet::Event)]
@@ -45,18 +49,16 @@ mod Distributor {
     }
 
     #[constructor]
-    fn constructor(
-        ref self: ContractState,
-        operator: ContractAddress,
-        shares: ContractAddress
-    ) {
+    fn constructor(ref self: ContractState, operator: ContractAddress, shares: ContractAddress) {
         self.operator.write(operator);
         self.shares.write(shares);
     }
 
-    #[external(v0)]
+    #[abi(embed_v0)]
     impl Distributor of IDistributor<ContractState> {
-        fn get_claimable_amount(self: @ContractState, token: ContractAddress, share_id: u256) -> u256 {
+        fn get_claimable_amount(
+            self: @ContractState, token: ContractAddress, share_id: u256
+        ) -> u256 {
             assert(self.registered_tokens.read(token), 'token is not registered');
             assert(share_id <= 10000, 'share id wrong');
 
@@ -100,9 +102,12 @@ mod Distributor {
             let time = get_block_timestamp();
             // event emit
 
-            self.emit(Event::NewDistribution(
+            self
+                .emit(
+                    Event::NewDistribution(
                         NewDistribution { token: token, amount: amount, time: time }
-                    ));
+                    )
+                );
         }
 
         fn claim(ref self: ContractState, token: ContractAddress, share_id: u256) {
@@ -110,7 +115,8 @@ mod Distributor {
             assert(self.available.read(), 'claims not available');
 
             assert(share_id <= 10000, 'share id wrong');
-            let owner: ContractAddress = ISharesDispatcher { contract_address: self.shares.read() }.owner_of(share_id);
+            let owner: ContractAddress = ISharesDispatcher { contract_address: self.shares.read() }
+                .owner_of(share_id);
 
             let caller = get_caller_address();
 
@@ -128,14 +134,17 @@ mod Distributor {
 
             self.claims.write(share_id, total_distribution);
 
-            IERC20Dispatcher{ contract_address: token }.transfer(owner, net_amount);
+            IERC20Dispatcher { contract_address: token }.transfer(owner, net_amount);
 
             let time = get_block_timestamp();
             // event emit
 
-            self.emit(Event::Claimed(
+            self
+                .emit(
+                    Event::Claimed(
                         Claimed { claimer: owner, token: token, amount: net_amount, time: time }
-                    ));
+                    )
+                );
         }
 
         fn toggle_claims(ref self: ContractState) {
@@ -165,9 +174,12 @@ mod Distributor {
 
             self.operator.write(new_operator);
 
-            self.emit(Event::OperatorChanged(
-                OperatorChanged { old_operator: caller, new_operator: new_operator }
-            ));
+            self
+                .emit(
+                    Event::OperatorChanged(
+                        OperatorChanged { old_operator: caller, new_operator: new_operator }
+                    )
+                );
         }
     }
 
@@ -175,8 +187,8 @@ mod Distributor {
         assert(self.registered_tokens.read(token), 'token is not registered');
 
         let total_distribution: u256 = self.total_distributions.read(token);
-        
-        if(total_distribution <= 10000) {
+
+        if (total_distribution <= 10000) {
             return 0;
         }
 
