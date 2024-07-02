@@ -4,8 +4,7 @@ mod MockMarket {
 
 
     #[storage]
-    struct Storage {
-    }
+    struct Storage {}
 
     #[constructor]
     fn constructor(ref self: ContractState) {}
@@ -16,5 +15,4 @@ mod MockMarket {
             2_u64
         }
     }
-
 }

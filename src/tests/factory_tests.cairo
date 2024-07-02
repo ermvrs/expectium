@@ -1,6 +1,8 @@
 use starknet::{ContractAddress, contract_address_const, ClassHash};
 use expectium::tests::mocks::interfaces::{IAccountDispatcher, IAccountDispatcherTrait};
-use expectium::interfaces::{IFactoryDispatcher, IFactoryDispatcherTrait, IMarketDispatcher, IMarketDispatcherTrait};
+use expectium::interfaces::{
+    IFactoryDispatcher, IFactoryDispatcherTrait, IMarketDispatcher, IMarketDispatcherTrait
+};
 use debug::PrintTrait;
 use traits::{Into, TryInto};
 use option::OptionTrait;
@@ -36,9 +38,13 @@ fn test_operator_transfer() {
     let setup = setup();
     let new_operator = deploy::deploy_account();
 
-    setup.operator.factory_transfer_operator(setup.factory.contract_address, new_operator.contract_address);
+    setup
+        .operator
+        .factory_transfer_operator(setup.factory.contract_address, new_operator.contract_address);
 
-    assert(setup.factory.operator() == new_operator.contract_address.into(), 'operator transfer fails');
+    assert(
+        setup.factory.operator() == new_operator.contract_address.into(), 'operator transfer fails'
+    );
 }
 
 #[test]
@@ -63,14 +69,17 @@ fn test_create_market() {
     let setup = setup();
 
     let collateral = deploy::deploy_erc20(
-        'TEST USDC',
-        'TUSDC',
-        18,
-        1000000000000000000, // 1 ether
-        setup.operator.contract_address
+        'TEST USDC', 'TUSDC', 18, 1000000000000000000, // 1 ether
+         setup.operator.contract_address
     );
 
-    let (market_id, market) = setup.operator.factory_create_market(setup.factory.contract_address, setup.operator.contract_address, collateral.contract_address);
+    let (market_id, market) = setup
+        .operator
+        .factory_create_market(
+            setup.factory.contract_address,
+            setup.operator.contract_address,
+            collateral.contract_address
+        );
 
     assert(market_id == 0, 'market id wrong');
 
@@ -87,14 +96,17 @@ fn test_market_linking() {
     let setup = setup();
 
     let collateral = deploy::deploy_erc20(
-        'TEST USDC',
-        'TUSDC',
-        18,
-        1000000000000000000, // 1 ether
-        setup.operator.contract_address
+        'TEST USDC', 'TUSDC', 18, 1000000000000000000, // 1 ether
+         setup.operator.contract_address
     );
-    
-    let (market_id, market) = setup.operator.factory_create_market(setup.factory.contract_address, setup.operator.contract_address, collateral.contract_address);
+
+    let (market_id, market) = setup
+        .operator
+        .factory_create_market(
+            setup.factory.contract_address,
+            setup.operator.contract_address,
+            collateral.contract_address
+        );
 
     let market_addr_on_factory = setup.factory.get_market_from_id(market_id);
     assert(market_addr_on_factory == market, 'addr wrong');
@@ -115,5 +127,6 @@ fn test_operator_assertion() {
     let setup = setup();
     let new_operator = deploy::deploy_account();
 
-    new_operator.factory_transfer_operator(setup.factory.contract_address, setup.operator.contract_address);
+    new_operator
+        .factory_transfer_operator(setup.factory.contract_address, setup.operator.contract_address);
 }

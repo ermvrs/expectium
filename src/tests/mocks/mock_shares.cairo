@@ -26,5 +26,4 @@ mod MockShares {
             self.owners.write(token_id, owner)
         }
     }
-
 }

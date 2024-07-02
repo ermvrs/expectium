@@ -7,8 +7,13 @@ use debug::PrintTrait;
 
 use starknet::{ContractAddress, ClassHash};
 
-use expectium::tests::mocks::interfaces::{IAccountDispatcher, IAccountDispatcherTrait, IMockSharesDispatcher};
-use expectium::interfaces::{IFactoryDispatcher, IERC20Dispatcher, IOrderbookDispatcher, IDistributorDispatcher, IMulticallDispatcher};
+use expectium::tests::mocks::interfaces::{
+    IAccountDispatcher, IAccountDispatcherTrait, IMockSharesDispatcher
+};
+use expectium::interfaces::{
+    IFactoryDispatcher, IERC20Dispatcher, IOrderbookDispatcher, IDistributorDispatcher,
+    IMulticallDispatcher
+};
 use expectium::contracts::factory::Factory;
 use expectium::contracts::orderbook::Orderbook;
 use expectium::contracts::distributor::Distributor;
@@ -36,7 +41,7 @@ fn deploy_mock_shares() -> IMockSharesDispatcher {
     )
         .unwrap();
 
-    IMockSharesDispatcher { contract_address }   
+    IMockSharesDispatcher { contract_address }
 }
 
 fn deploy_factory(operator: ContractAddress, market_hash: ClassHash) -> IFactoryDispatcher {
@@ -45,42 +50,50 @@ fn deploy_factory(operator: ContractAddress, market_hash: ClassHash) -> IFactory
         0,
         array![operator.into(), market_hash.into()].span(),
         false
-    ).unwrap();
+    )
+        .unwrap();
 
     IFactoryDispatcher { contract_address }
 }
 
-fn deploy_orderbook(market: ContractAddress, operator: ContractAddress, quote: ContractAddress, distributor: ContractAddress) -> IOrderbookDispatcher {
+fn deploy_orderbook(
+    market: ContractAddress,
+    operator: ContractAddress,
+    quote: ContractAddress,
+    distributor: ContractAddress
+) -> IOrderbookDispatcher {
     let (contract_address, _) = deploy_syscall(
         Orderbook::TEST_CLASS_HASH.try_into().unwrap(),
         0,
         array![market.into(), operator.into(), quote.into(), distributor.into()].span(),
         false
-    ).unwrap();
+    )
+        .unwrap();
 
     IOrderbookDispatcher { contract_address }
 }
 
-fn deploy_distributor(operator: ContractAddress, shares: ContractAddress) -> IDistributorDispatcher {
+fn deploy_distributor(
+    operator: ContractAddress, shares: ContractAddress
+) -> IDistributorDispatcher {
     let (contract_address, _) = deploy_syscall(
         Distributor::TEST_CLASS_HASH.try_into().unwrap(),
         0,
         array![operator.into(), shares.into()].span(),
         false
-    ).unwrap();
+    )
+        .unwrap();
 
-    IDistributorDispatcher { contract_address }  
+    IDistributorDispatcher { contract_address }
 }
 
 fn deploy_multicall() -> IMulticallDispatcher {
     let (contract_address, _) = deploy_syscall(
-        Multicall::TEST_CLASS_HASH.try_into().unwrap(),
-        0,
-        Default::default().span(),
-        false
-    ).unwrap();
+        Multicall::TEST_CLASS_HASH.try_into().unwrap(), 0, Default::default().span(), false
+    )
+        .unwrap();
 
-    IMulticallDispatcher { contract_address }  
+    IMulticallDispatcher { contract_address }
 }
 
 fn deploy_erc20(

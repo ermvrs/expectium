@@ -1,8 +1,10 @@
 #[starknet::contract]
 mod Market {
     use expectium::types::{Asset};
-    use starknet::{ContractAddress, get_caller_address, get_contract_address, 
-                    ClassHash, replace_class_syscall, get_block_timestamp};
+    use starknet::{
+        ContractAddress, get_caller_address, get_contract_address, ClassHash, replace_class_syscall,
+        get_block_timestamp
+    };
     use expectium::implementations::{AssetLegacyHash, AssetIntoU8};
     use expectium::interfaces::{IERC20Dispatcher, IERC20DispatcherTrait, IMarket};
     use traits::{Into, TryInto};
@@ -71,7 +73,7 @@ mod Market {
 
     #[storage]
     struct Storage {
-        balances: LegacyMap<(u8, ContractAddress), u256>, 
+        balances: LegacyMap<(u8, ContractAddress), u256>,
         supplies: LegacyMap<Asset, u256>,
         allowances: LegacyMap<(ContractAddress, ContractAddress), bool>, // owner -> spender -> bool
         collateral: ContractAddress,
@@ -82,7 +84,13 @@ mod Market {
     }
 
     #[constructor]
-    fn constructor(ref self: ContractState, factory: ContractAddress, collateral: ContractAddress, id: u64, resolver: ContractAddress) {
+    fn constructor(
+        ref self: ContractState,
+        factory: ContractAddress,
+        collateral: ContractAddress,
+        id: u64,
+        resolver: ContractAddress
+    ) {
         let caller = get_caller_address();
 
         self.factory.write(factory);
@@ -91,7 +99,7 @@ mod Market {
         self.collateral.write(collateral);
     }
 
-    #[external(v0)]
+    #[abi(embed_v0)]
     impl Market of IMarket<ContractState> {
         fn balance_of(self: @ContractState, account: ContractAddress, asset: Asset) -> u256 {
             self.balances.read((asset.into(), account))
@@ -101,7 +109,9 @@ mod Market {
             self.supplies.read(asset)
         }
 
-        fn allowance(self: @ContractState, owner: ContractAddress, spender: ContractAddress) -> bool {
+        fn allowance(
+            self: @ContractState, owner: ContractAddress, spender: ContractAddress
+        ) -> bool {
             self.allowances.read((owner, spender))
         }
 
@@ -139,15 +149,30 @@ mod Market {
             let caller = get_caller_address();
             _receive_collateral(ref self, caller, invest);
 
-            self.balances.write((Asset::Happens(()).into(), caller), self.balances.read((Asset::Happens(()).into(), caller)) + invest);
-            self.balances.write((Asset::Not(()).into(), caller), self.balances.read((Asset::Not(()).into(), caller)) + invest);
+            self
+                .balances
+                .write(
+                    (Asset::Happens(()).into(), caller),
+                    self.balances.read((Asset::Happens(()).into(), caller)) + invest
+                );
+            self
+                .balances
+                .write(
+                    (Asset::Not(()).into(), caller),
+                    self.balances.read((Asset::Not(()).into(), caller)) + invest
+                );
 
-            self.supplies.write(Asset::Happens(()), self.supplies.read(Asset::Happens(())) + invest);
+            self
+                .supplies
+                .write(Asset::Happens(()), self.supplies.read(Asset::Happens(())) + invest);
             self.supplies.write(Asset::Not(()), self.supplies.read(Asset::Not(())) + invest);
-        
-            self.emit(Event::SharesMinted(
-                SharesMinted { caller: caller, amount: invest, date: get_block_timestamp() }
-            ));
+
+            self
+                .emit(
+                    Event::SharesMinted(
+                        SharesMinted { caller: caller, amount: invest, date: get_block_timestamp() }
+                    )
+                );
         }
 
         fn merge_shares(ref self: ContractState, shares: u256) {
@@ -156,17 +181,32 @@ mod Market {
 
             let caller = get_caller_address();
 
-            self.balances.write((Asset::Happens(()).into(), caller), self.balances.read((Asset::Happens(()).into(), caller)) - shares);
-            self.balances.write((Asset::Not(()).into(), caller), self.balances.read((Asset::Not(()).into(), caller)) - shares);
+            self
+                .balances
+                .write(
+                    (Asset::Happens(()).into(), caller),
+                    self.balances.read((Asset::Happens(()).into(), caller)) - shares
+                );
+            self
+                .balances
+                .write(
+                    (Asset::Not(()).into(), caller),
+                    self.balances.read((Asset::Not(()).into(), caller)) - shares
+                );
 
-            self.supplies.write(Asset::Happens(()), self.supplies.read(Asset::Happens(())) - shares);
+            self
+                .supplies
+                .write(Asset::Happens(()), self.supplies.read(Asset::Happens(())) - shares);
             self.supplies.write(Asset::Not(()), self.supplies.read(Asset::Not(())) - shares);
 
             _transfer_collateral(ref self, caller, shares);
-        
-            self.emit(Event::SharesMerged(
-                SharesMerged { caller: caller, amount: shares, date: get_block_timestamp() }
-            ));
+
+            self
+                .emit(
+                    Event::SharesMerged(
+                        SharesMerged { caller: caller, amount: shares, date: get_block_timestamp() }
+                    )
+                );
         }
 
         fn convert_shares(ref self: ContractState, asset: Asset, amount: u256) {
@@ -174,21 +214,36 @@ mod Market {
 
             let caller = get_caller_address();
 
-            self.balances.write((asset.into(), caller), self.balances.read((asset.into(), caller)) - amount); // remove asset
+            self
+                .balances
+                .write(
+                    (asset.into(), caller), self.balances.read((asset.into(), caller)) - amount
+                ); // remove asset
             self.supplies.write(asset, self.supplies.read(asset) - amount); // remove supply
 
             let resolve_ratio = self.resolve_ratio.read(asset);
 
             let collateral_turnback: u256 = (resolve_ratio.into() * amount) / 10000;
-            assert(collateral_turnback <= amount, 'turnback higher'); // turnback amounttan fazla olamaz.
+            assert(
+                collateral_turnback <= amount, 'turnback higher'
+            ); // turnback amounttan fazla olamaz.
 
             _transfer_collateral(ref self, caller, collateral_turnback);
 
-            self.emit(Event::SharesConverted(
-                SharesConverted { caller: caller, asset: asset, amount: amount, collateral_received: collateral_turnback, date: get_block_timestamp() }
-            ));
+            self
+                .emit(
+                    Event::SharesConverted(
+                        SharesConverted {
+                            caller: caller,
+                            asset: asset,
+                            amount: amount,
+                            collateral_received: collateral_turnback,
+                            date: get_block_timestamp()
+                        }
+                    )
+                );
         }
-        
+
         // Only Resolver
         fn resolve_market(ref self: ContractState, happens: u16, not: u16) {
             let caller = get_caller_address();
@@ -199,9 +254,12 @@ mod Market {
             self.resolve_ratio.write(Asset::Happens(()), happens);
             self.resolve_ratio.write(Asset::Not(()), not);
 
-            self.emit(Event::MarketResolved(
-                MarketResolved { resolver: caller, happens: happens, not: not }
-            ));
+            self
+                .emit(
+                    Event::MarketResolved(
+                        MarketResolved { resolver: caller, happens: happens, not: not }
+                    )
+                );
         }
 
         fn upgrade_market(ref self: ContractState, new_class: ClassHash) {
@@ -226,7 +284,13 @@ mod Market {
             self.emit(Event::ApprovalRevoked(ApprovalRevoked { owner: caller, spender: spender }));
         }
 
-        fn transfer_from(ref self: ContractState, from: ContractAddress, to: ContractAddress, asset: Asset, amount: u256) {
+        fn transfer_from(
+            ref self: ContractState,
+            from: ContractAddress,
+            to: ContractAddress,
+            asset: Asset,
+            amount: u256
+        ) {
             let caller = get_caller_address();
             assert(_is_allowed_spender(@self, from, caller), 'not allowed spender');
 
@@ -234,9 +298,14 @@ mod Market {
             assert(owner_balance >= amount, 'amount exceeds bal');
 
             self.balances.write((asset.into(), from), owner_balance - amount);
-            self.balances.write((asset.into(), to), self.balances.read((asset.into(), to)) + amount);
-        
-            self.emit(Event::Transfer(Transfer { from: from, to: to, asset: asset, amount: amount}));
+            self
+                .balances
+                .write((asset.into(), to), self.balances.read((asset.into(), to)) + amount);
+
+            self
+                .emit(
+                    Event::Transfer(Transfer { from: from, to: to, asset: asset, amount: amount })
+                );
         }
 
         fn transfer(ref self: ContractState, to: ContractAddress, asset: Asset, amount: u256) {
@@ -246,9 +315,14 @@ mod Market {
             assert(current_balance >= amount, 'amount exceeds bal');
 
             self.balances.write((asset.into(), caller), current_balance - amount);
-            self.balances.write((asset.into(), to), self.balances.read((asset.into(), to)) + amount);
-        
-            self.emit(Event::Transfer(Transfer { from: caller, to: to, asset: asset, amount: amount}));
+            self
+                .balances
+                .write((asset.into(), to), self.balances.read((asset.into(), to)) + amount);
+
+            self
+                .emit(
+                    Event::Transfer(Transfer { from: caller, to: to, asset: asset, amount: amount })
+                );
         }
     }
 
@@ -261,11 +335,14 @@ mod Market {
 
     fn _receive_collateral(ref self: ContractState, from: ContractAddress, amount: u256) {
         let this_addr = get_contract_address();
-        let balanceBefore = IERC20Dispatcher { contract_address: self.collateral.read()}.balanceOf(this_addr);
+        let balanceBefore = IERC20Dispatcher { contract_address: self.collateral.read() }
+            .balanceOf(this_addr);
 
-        IERC20Dispatcher { contract_address: self.collateral.read() }.transferFrom(from, this_addr, amount);
+        IERC20Dispatcher { contract_address: self.collateral.read() }
+            .transferFrom(from, this_addr, amount);
 
-        let balanceAfter = IERC20Dispatcher { contract_address: self.collateral.read()}.balanceOf(this_addr);
+        let balanceAfter = IERC20Dispatcher { contract_address: self.collateral.read() }
+            .balanceOf(this_addr);
         assert((balanceAfter - amount) >= balanceBefore, 'EXPM: transfer fail')
     }
 
@@ -273,8 +350,10 @@ mod Market {
         IERC20Dispatcher { contract_address: self.collateral.read() }.transfer(to, amount);
     }
 
-    fn _is_allowed_spender(self: @ContractState, owner: ContractAddress, spender: ContractAddress) -> bool {
-        if(owner == spender) {
+    fn _is_allowed_spender(
+        self: @ContractState, owner: ContractAddress, spender: ContractAddress
+    ) -> bool {
+        if (owner == spender) {
             return true;
         }
         self.allowances.read((owner, spender))

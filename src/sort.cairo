@@ -5,19 +5,15 @@ use expectium::utils::{pack_order, unpack_order};
 
 // from https://github.com/keep-starknet-strange/alexandria/blob/main/src/sorting/src/merge_sort.cairo
 
-fn _sort_orders_descending(
-    mut proposals: Array<felt252>
-) -> Array<felt252> {
+fn _sort_orders_descending(mut proposals: Array<felt252>) -> Array<felt252> {
     _mergesort_orders_by_price_desc(proposals) // span gerekmeyebilir.
 }
 
-fn _sort_orders_ascending(
-    mut proposals: Array<felt252>
-) -> Array<felt252> {
+fn _sort_orders_ascending(mut proposals: Array<felt252>) -> Array<felt252> {
     _mergesort_orders_by_price_asc(proposals) // span gerekmeyebilir.
 }
 
-fn _mergesort_orders_by_price_asc(mut arr: Array<felt252>) -> Array<felt252>{
+fn _mergesort_orders_by_price_asc(mut arr: Array<felt252>) -> Array<felt252> {
     let len = arr.len();
     if len <= 1 {
         return arr;
@@ -25,22 +21,16 @@ fn _mergesort_orders_by_price_asc(mut arr: Array<felt252>) -> Array<felt252>{
 
     let middle = len / 2;
     let (mut left_arr, mut right_arr) = _split_array(ref arr, middle);
-    
-    let mut sorted_left = _mergesort_orders_by_price_asc(
-        left_arr
-    );
-    let mut sorted_right = _mergesort_orders_by_price_asc(
-        right_arr
-    );
+
+    let mut sorted_left = _mergesort_orders_by_price_asc(left_arr);
+    let mut sorted_right = _mergesort_orders_by_price_asc(right_arr);
 
     let mut result_arr = Default::default();
-    _merge_and_slice_recursive_ascending(
-        sorted_left, sorted_right, ref result_arr, 0, 0
-    );
+    _merge_and_slice_recursive_ascending(sorted_left, sorted_right, ref result_arr, 0, 0);
     result_arr
 }
 
-fn _mergesort_orders_by_price_desc(mut arr: Array<felt252>) -> Array<felt252>{
+fn _mergesort_orders_by_price_desc(mut arr: Array<felt252>) -> Array<felt252> {
     let len = arr.len();
     if len <= 1 {
         return arr;
@@ -49,17 +39,11 @@ fn _mergesort_orders_by_price_desc(mut arr: Array<felt252>) -> Array<felt252>{
     let middle = len / 2;
     let (mut left_arr, mut right_arr) = _split_array(ref arr, middle);
 
-    let mut sorted_left = _mergesort_orders_by_price_desc(
-        left_arr
-    );
-    let mut sorted_right = _mergesort_orders_by_price_desc(
-        right_arr
-    );
+    let mut sorted_left = _mergesort_orders_by_price_desc(left_arr);
+    let mut sorted_right = _mergesort_orders_by_price_desc(right_arr);
 
     let mut result_arr = Default::default();
-    _merge_and_slice_recursive_descending(
-        sorted_left, sorted_right, ref result_arr, 0, 0
-    );
+    _merge_and_slice_recursive_descending(sorted_left, sorted_right, ref result_arr, 0, 0);
     result_arr
 }
 
@@ -78,18 +62,28 @@ fn _merge_and_slice_recursive_descending( // orderları price yüksekten düşü
         (*right_arr[right_arr_ix], left_arr_ix, right_arr_ix + 1)
     } else if right_arr_ix == right_arr.len() {
         (*left_arr[left_arr_ix], left_arr_ix + 1, right_arr_ix)
-    } else if unpack_order(*left_arr[left_arr_ix]).price > unpack_order(*right_arr[right_arr_ix]).price {
+    } else if unpack_order(*left_arr[left_arr_ix])
+        .price > unpack_order(*right_arr[right_arr_ix])
+        .price {
         (*left_arr[left_arr_ix], left_arr_ix + 1, right_arr_ix)
-    } else if unpack_order(*left_arr[left_arr_ix]).price < unpack_order(*right_arr[right_arr_ix]).price {
+    } else if unpack_order(*left_arr[left_arr_ix])
+        .price < unpack_order(*right_arr[right_arr_ix])
+        .price {
         (*right_arr[right_arr_ix], left_arr_ix, right_arr_ix + 1)
-    } else if unpack_order(*left_arr[left_arr_ix]).date <= unpack_order(*right_arr[right_arr_ix]).date {
-        (*left_arr[left_arr_ix], left_arr_ix + 1, right_arr_ix) // @audit-issue : oRDER İD İLEDE KONTROL 
+    } else if unpack_order(*left_arr[left_arr_ix])
+        .date <= unpack_order(*right_arr[right_arr_ix])
+        .date {
+        (
+            *left_arr[left_arr_ix], left_arr_ix + 1, right_arr_ix
+        ) // @audit-issue : oRDER İD İLEDE KONTROL 
     } else {
         (*right_arr[right_arr_ix], left_arr_ix, right_arr_ix + 1)
     };
 
     result_arr.append(append);
-    _merge_and_slice_recursive_descending(left_arr, right_arr, ref result_arr, next_left_ix, next_right_ix);
+    _merge_and_slice_recursive_descending(
+        left_arr, right_arr, ref result_arr, next_left_ix, next_right_ix
+    );
 }
 
 fn _merge_and_slice_recursive_ascending( // orderları price yüksekten düşüğe doğru sıralar, eşit ise tarihe göre
@@ -107,18 +101,26 @@ fn _merge_and_slice_recursive_ascending( // orderları price yüksekten düşü�
         (*right_arr[right_arr_ix], left_arr_ix, right_arr_ix + 1)
     } else if right_arr_ix == right_arr.len() {
         (*left_arr[left_arr_ix], left_arr_ix + 1, right_arr_ix)
-    } else if unpack_order(*left_arr[left_arr_ix]).price < unpack_order(*right_arr[right_arr_ix]).price {
+    } else if unpack_order(*left_arr[left_arr_ix])
+        .price < unpack_order(*right_arr[right_arr_ix])
+        .price {
         (*left_arr[left_arr_ix], left_arr_ix + 1, right_arr_ix)
-    } else if unpack_order(*left_arr[left_arr_ix]).price > unpack_order(*right_arr[right_arr_ix]).price {
+    } else if unpack_order(*left_arr[left_arr_ix])
+        .price > unpack_order(*right_arr[right_arr_ix])
+        .price {
         (*right_arr[right_arr_ix], left_arr_ix, right_arr_ix + 1)
-    } else if unpack_order(*left_arr[left_arr_ix]).date <= unpack_order(*right_arr[right_arr_ix]).date {
+    } else if unpack_order(*left_arr[left_arr_ix])
+        .date <= unpack_order(*right_arr[right_arr_ix])
+        .date {
         (*left_arr[left_arr_ix], left_arr_ix + 1, right_arr_ix)
     } else {
         (*right_arr[right_arr_ix], left_arr_ix, right_arr_ix + 1)
     };
 
     result_arr.append(append);
-    _merge_and_slice_recursive_ascending(left_arr, right_arr, ref result_arr, next_left_ix, next_right_ix);
+    _merge_and_slice_recursive_ascending(
+        left_arr, right_arr, ref result_arr, next_left_ix, next_right_ix
+    );
 }
 
 fn _split_array<T, impl TCopy: Copy<T>, impl TDrop: Drop<T>>(

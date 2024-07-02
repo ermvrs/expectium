@@ -30,16 +30,16 @@ impl OrderStatusIntoU256 of Into<OrderStatus, u256> {
 
 impl Felt252TryIntoOrderStatus of TryInto<felt252, OrderStatus> {
     fn try_into(self: felt252) -> Option<OrderStatus> {
-        if(self == 0) {
+        if (self == 0) {
             return Option::Some(OrderStatus::Initialized(()));
         }
-        if(self == 1) {
+        if (self == 1) {
             return Option::Some(OrderStatus::PartiallyFilled(()));
         }
-        if(self == 2) {
+        if (self == 2) {
             return Option::Some(OrderStatus::Filled(()));
         }
-        if(self == 3) {
+        if (self == 3) {
             return Option::Some(OrderStatus::Cancelled(()));
         }
 
@@ -52,7 +52,9 @@ impl StoreU32Array of Store<Array<u32>> {
         StoreU32Array::read_at_offset(address_domain, base, 0)
     }
 
-    fn write(address_domain: u32, base: StorageBaseAddress, value: Array<u32>) -> SyscallResult<()> {
+    fn write(
+        address_domain: u32, base: StorageBaseAddress, value: Array<u32>
+    ) -> SyscallResult<()> {
         StoreU32Array::write_at_offset(address_domain, base, 0, value)
     }
 
@@ -61,7 +63,9 @@ impl StoreU32Array of Store<Array<u32>> {
     ) -> SyscallResult<Array<u32>> {
         let mut arr: Array<u32> = ArrayTrait::new();
 
-        let len: u8 = Store::<u8>::read_at_offset(address_domain, base, offset) // 0. offsette array length
+        let len: u8 = Store::<
+            u8
+        >::read_at_offset(address_domain, base, offset) // 0. offsette array length
             .expect('Storage arr too large');
         offset += 1;
 
@@ -71,10 +75,7 @@ impl StoreU32Array of Store<Array<u32>> {
                 break;
             }
 
-            let value = Store::<u32>::read_at_offset(
-                address_domain, base, offset
-            )
-                .unwrap();
+            let value = Store::<u32>::read_at_offset(address_domain, base, offset).unwrap();
             arr.append(value);
             offset += Store::<u32>::size();
         };
@@ -94,14 +95,10 @@ impl StoreU32Array of Store<Array<u32>> {
         loop {
             match value.pop_front() {
                 Option::Some(element) => {
-                    Store::<u32>::write_at_offset(
-                        address_domain, base, offset, element
-                    ).unwrap();
+                    Store::<u32>::write_at_offset(address_domain, base, offset, element).unwrap();
                     offset += Store::<u32>::size();
                 },
-                Option::None(_) => {
-                    break Result::Ok(());
-                }
+                Option::None(_) => { break Result::Ok(()); }
             };
         }
     }
@@ -115,7 +112,9 @@ impl StoreFelt252Array of Store<Array<felt252>> {
         StoreFelt252Array::read_at_offset(address_domain, base, 0)
     }
 
-    fn write(address_domain: u32, base: StorageBaseAddress, value: Array<felt252>) -> SyscallResult<()> {
+    fn write(
+        address_domain: u32, base: StorageBaseAddress, value: Array<felt252>
+    ) -> SyscallResult<()> {
         StoreFelt252Array::write_at_offset(address_domain, base, 0, value)
     }
 
@@ -124,7 +123,9 @@ impl StoreFelt252Array of Store<Array<felt252>> {
     ) -> SyscallResult<Array<felt252>> {
         let mut arr: Array<felt252> = ArrayTrait::new();
 
-        let len: u8 = Store::<u8>::read_at_offset(address_domain, base, offset) // 0. offsette array length
+        let len: u8 = Store::<
+            u8
+        >::read_at_offset(address_domain, base, offset) // 0. offsette array length
             .expect('Storage arr too large');
         offset += 1;
 
@@ -134,10 +135,7 @@ impl StoreFelt252Array of Store<Array<felt252>> {
                 break;
             }
 
-            let value = Store::<felt252>::read_at_offset(
-                address_domain, base, offset
-            )
-                .unwrap();
+            let value = Store::<felt252>::read_at_offset(address_domain, base, offset).unwrap();
             arr.append(value);
             offset += Store::<felt252>::size();
         };
@@ -145,7 +143,7 @@ impl StoreFelt252Array of Store<Array<felt252>> {
         // Return the array.
         Result::Ok(arr)
     }
-    
+
 
     fn write_at_offset(
         address_domain: u32, base: StorageBaseAddress, mut offset: u8, mut value: Array<felt252>
@@ -158,14 +156,11 @@ impl StoreFelt252Array of Store<Array<felt252>> {
         loop {
             match value.pop_front() {
                 Option::Some(element) => {
-                    Store::<felt252>::write_at_offset(
-                        address_domain, base, offset, element
-                    ).unwrap();
+                    Store::<felt252>::write_at_offset(address_domain, base, offset, element)
+                        .unwrap();
                     offset += Store::<felt252>::size();
                 },
-                Option::None(_) => {
-                    break Result::Ok(());
-                }
+                Option::None(_) => { break Result::Ok(()); }
             };
         }
     }
@@ -201,10 +196,10 @@ impl AssetIntoFelt252 of Into<Asset, felt252> {
 
 impl Felt252TryIntoAsset of TryInto<felt252, Asset> {
     fn try_into(self: felt252) -> Option<Asset> {
-        if(self == 0) {
+        if (self == 0) {
             return Option::Some(Asset::Happens(()));
         }
-        if(self == 1) {
+        if (self == 1) {
             return Option::Some(Asset::Not(()));
         }
 

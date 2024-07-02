@@ -1,8 +1,10 @@
 use starknet::{ContractAddress, contract_address_const, ClassHash};
 use expectium::tests::mocks::interfaces::{IAccountDispatcher, IAccountDispatcherTrait};
 use expectium::tests::mocks::mock_market_v2::MockMarket;
-use expectium::interfaces::{IFactoryDispatcher, IFactoryDispatcherTrait, IMarketDispatcher, 
-                            IMarketDispatcherTrait, IERC20Dispatcher, IERC20DispatcherTrait};
+use expectium::interfaces::{
+    IFactoryDispatcher, IFactoryDispatcherTrait, IMarketDispatcher, IMarketDispatcherTrait,
+    IERC20Dispatcher, IERC20DispatcherTrait
+};
 use expectium::tests::deploy;
 use expectium::types::Asset;
 use expectium::contracts::market::Market;
@@ -26,21 +28,29 @@ fn setup() -> Config {
     let bob = deploy::deploy_account();
 
     let collateral = deploy::deploy_erc20(
-        'TEST USDC',
-        'TUSDC',
-        18,
-        10000000000000000000, // 10 ether
-        operator.contract_address
+        'TEST USDC', 'TUSDC', 18, 10000000000000000000, // 10 ether
+         operator.contract_address
     );
 
-    operator.erc20_transfer(collateral.contract_address, alice.contract_address, 5000000000000000000);
+    operator
+        .erc20_transfer(collateral.contract_address, alice.contract_address, 5000000000000000000);
 
     let market_classhash: ClassHash = Market::TEST_CLASS_HASH.try_into().unwrap();
 
     let factory = deploy::deploy_factory(operator.contract_address, market_classhash);
-    let (_, market) = operator.factory_create_market(factory.contract_address, operator.contract_address, collateral.contract_address);
+    let (_, market) = operator
+        .factory_create_market(
+            factory.contract_address, operator.contract_address, collateral.contract_address
+        );
 
-    Config { operator, alice, bob, collateral, market: IMarketDispatcher { contract_address: market}, factory }
+    Config {
+        operator,
+        alice,
+        bob,
+        collateral,
+        market: IMarketDispatcher { contract_address: market },
+        factory
+    }
 }
 
 fn setup_with_mergeshares() -> Config {
@@ -49,24 +59,32 @@ fn setup_with_mergeshares() -> Config {
     let bob = deploy::deploy_account();
 
     let collateral = deploy::deploy_erc20(
-        'TEST USDC',
-        'TUSDC',
-        18,
-        10000000000000000000, // 10 ether
-        operator.contract_address
+        'TEST USDC', 'TUSDC', 18, 10000000000000000000, // 10 ether
+         operator.contract_address
     );
 
-    operator.erc20_transfer(collateral.contract_address, alice.contract_address, 5000000000000000000);
+    operator
+        .erc20_transfer(collateral.contract_address, alice.contract_address, 5000000000000000000);
 
     let market_classhash: ClassHash = Market::TEST_CLASS_HASH.try_into().unwrap();
 
     let factory = deploy::deploy_factory(operator.contract_address, market_classhash);
-    let (_, market) = operator.factory_create_market(factory.contract_address, operator.contract_address, collateral.contract_address);
+    let (_, market) = operator
+        .factory_create_market(
+            factory.contract_address, operator.contract_address, collateral.contract_address
+        );
 
     alice.erc20_approve(collateral.contract_address, market, 1000000000000000000); // 1 ether
     alice.market_mint_shares(market, 1000000000000000000);
 
-    Config { operator, alice, bob, collateral, market: IMarketDispatcher { contract_address: market }, factory }
+    Config {
+        operator,
+        alice,
+        bob,
+        collateral,
+        market: IMarketDispatcher { contract_address: market },
+        factory
+    }
 }
 
 #[test]
@@ -74,12 +92,24 @@ fn setup_with_mergeshares() -> Config {
 fn test_initial_values() {
     let setup = setup();
 
-    assert(setup.collateral.balance_of(setup.operator.contract_address) == 5000000000000000000, 'init bal wrong');
-    assert(setup.collateral.balance_of(setup.alice.contract_address) == 5000000000000000000, 'init bal wrong');
+    assert(
+        setup.collateral.balance_of(setup.operator.contract_address) == 5000000000000000000,
+        'init bal wrong'
+    );
+    assert(
+        setup.collateral.balance_of(setup.alice.contract_address) == 5000000000000000000,
+        'init bal wrong'
+    );
 
-    assert(setup.market.balance_of(setup.operator.contract_address, Asset::Happens(())) == 0, 'init mrk bal wrong');
-    assert(setup.market.balance_of(setup.operator.contract_address, Asset::Not(())) == 0, 'init mrk bal wrong');
-    
+    assert(
+        setup.market.balance_of(setup.operator.contract_address, Asset::Happens(())) == 0,
+        'init mrk bal wrong'
+    );
+    assert(
+        setup.market.balance_of(setup.operator.contract_address, Asset::Not(())) == 0,
+        'init mrk bal wrong'
+    );
+
     assert(setup.market.total_supply(Asset::Not(())) == 0, 'init supply wrong');
 
     assert(setup.market.collateral() == setup.collateral.contract_address, 'collateral wrong');
@@ -93,21 +123,47 @@ fn test_initial_values() {
 fn test_mint_merge_shares() {
     let setup = setup();
 
-    setup.alice.erc20_approve(setup.collateral.contract_address, setup.market.contract_address, 1000000000000000000); // 1 ether
+    setup
+        .alice
+        .erc20_approve(
+            setup.collateral.contract_address, setup.market.contract_address, 1000000000000000000
+        ); // 1 ether
     setup.alice.market_mint_shares(setup.market.contract_address, 1000000000000000000);
 
-    assert(setup.market.balance_of(setup.alice.contract_address, Asset::Happens(())) == 1000000000000000000, 'wrong happens bal');
-    assert(setup.market.balance_of(setup.alice.contract_address, Asset::Not(())) == 1000000000000000000, 'wrong not bal');
+    assert(
+        setup
+            .market
+            .balance_of(setup.alice.contract_address, Asset::Happens(())) == 1000000000000000000,
+        'wrong happens bal'
+    );
+    assert(
+        setup
+            .market
+            .balance_of(setup.alice.contract_address, Asset::Not(())) == 1000000000000000000,
+        'wrong not bal'
+    );
 
     // merge_shares
 
-    assert(setup.collateral.balance_of(setup.alice.contract_address) == 4000000000000000000, 'usdc bal wrong');
+    assert(
+        setup.collateral.balance_of(setup.alice.contract_address) == 4000000000000000000,
+        'usdc bal wrong'
+    );
 
     setup.alice.market_merge_shares(setup.market.contract_address, 1000000000000000000);
 
-    assert(setup.market.balance_of(setup.alice.contract_address, Asset::Happens(())) == 0, 'MRG wrong happens bal');
-    assert(setup.market.balance_of(setup.alice.contract_address, Asset::Not(())) == 0, 'MRG wrong not bal');
-    assert(setup.collateral.balance_of(setup.alice.contract_address) == 5000000000000000000, 'MRG usdc bal wrong');
+    assert(
+        setup.market.balance_of(setup.alice.contract_address, Asset::Happens(())) == 0,
+        'MRG wrong happens bal'
+    );
+    assert(
+        setup.market.balance_of(setup.alice.contract_address, Asset::Not(())) == 0,
+        'MRG wrong not bal'
+    );
+    assert(
+        setup.collateral.balance_of(setup.alice.contract_address) == 5000000000000000000,
+        'MRG usdc bal wrong'
+    );
 }
 
 #[test]
@@ -122,7 +178,14 @@ fn test_transfer_without_approval() {
     let collateral = setup.collateral;
     let market = setup.market;
 
-    spender.market_transfer_from(market.contract_address, alice.contract_address, bob.contract_address, Asset::Happens(()), 1000000000000000000);
+    spender
+        .market_transfer_from(
+            market.contract_address,
+            alice.contract_address,
+            bob.contract_address,
+            Asset::Happens(()),
+            1000000000000000000
+        );
 }
 
 #[test]
@@ -139,7 +202,14 @@ fn test_transfer_exceeds_balance() {
 
     alice.market_approve(market.contract_address, spender.contract_address);
 
-    spender.market_transfer_from(market.contract_address, alice.contract_address, bob.contract_address, Asset::Happens(()), 1000000000000000000);
+    spender
+        .market_transfer_from(
+            market.contract_address,
+            alice.contract_address,
+            bob.contract_address,
+            Asset::Happens(()),
+            1000000000000000000
+        );
 }
 
 #[test]
@@ -153,15 +223,28 @@ fn test_transfer_from() {
     let collateral = setup.collateral;
     let market = setup.market;
 
-    assert(market.balance_of(alice.contract_address, Asset::Happens(())) == 1000000000000000000, 'alice bal wrong');
+    assert(
+        market.balance_of(alice.contract_address, Asset::Happens(())) == 1000000000000000000,
+        'alice bal wrong'
+    );
     assert(market.balance_of(bob.contract_address, Asset::Happens(())) == 0, 'bob bal wrong');
 
     alice.market_approve(market.contract_address, spender.contract_address);
 
-    spender.market_transfer_from(market.contract_address, alice.contract_address, bob.contract_address, Asset::Happens(()), 1000000000000000000);
+    spender
+        .market_transfer_from(
+            market.contract_address,
+            alice.contract_address,
+            bob.contract_address,
+            Asset::Happens(()),
+            1000000000000000000
+        );
 
     assert(market.balance_of(alice.contract_address, Asset::Happens(())) == 0, 'alice bal wrong');
-    assert(market.balance_of(bob.contract_address, Asset::Happens(())) == 1000000000000000000, 'bob bal wrong');
+    assert(
+        market.balance_of(bob.contract_address, Asset::Happens(())) == 1000000000000000000,
+        'bob bal wrong'
+    );
 }
 
 #[test]
@@ -184,12 +267,11 @@ fn test_convert_shares() {
     let operator = setup.operator;
     let collateral = setup.collateral;
     let market = setup.market;
-    
+
     operator.market_resolve_market(market.contract_address, 10000_u16, 0_u16);
 
     assert(setup.market.is_resolved(), 'resolved wrong');
 
-    
     let balance = market.balance_of(alice.contract_address, Asset::Happens(()));
     assert(balance == 1000000000000000000, 'alice bal wrong');
 
@@ -253,7 +335,14 @@ fn test_upgrade_via_factory() {
 
 #[test]
 #[available_gas(1000000000)]
-#[should_panic(expected: ('ERC20_INSUFFICIENT_ALLOWANCE', 'ENTRYPOINT_FAILED', 'ENTRYPOINT_FAILED', 'ENTRYPOINT_FAILED'))]
+#[should_panic(
+    expected: (
+        'ERC20_INSUFFICIENT_ALLOWANCE',
+        'ENTRYPOINT_FAILED',
+        'ENTRYPOINT_FAILED',
+        'ENTRYPOINT_FAILED'
+    )
+)]
 fn test_mint_without_approval() {
     let setup = setup();
 

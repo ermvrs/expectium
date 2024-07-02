@@ -1,13 +1,17 @@
 #[starknet::contract]
 mod Orderbook {
-    use starknet::{ContractAddress, ClassHash, get_block_timestamp, get_caller_address, get_contract_address, replace_class_syscall};
+    use starknet::{
+        ContractAddress, ClassHash, get_block_timestamp, get_caller_address, get_contract_address,
+        replace_class_syscall
+    };
     use expectium::types::{Order, Asset, PlatformFees, FeeType, OrderStatus};
     use expectium::utils::{pack_order, unpack_order};
     use expectium::implementations::{StoreFelt252Array, StoreU32Array, AssetLegacyHash};
-    use expectium::interfaces::{IOrderbook, IMarketDispatcher, IMarketDispatcherTrait, 
-                                IERC20Dispatcher, IERC20DispatcherTrait, 
-                                IDistributorDispatcher, IDistributorDispatcherTrait,
-                                IStatisticsDispatcher, IStatisticsDispatcherTrait};
+    use expectium::interfaces::{
+        IOrderbook, IMarketDispatcher, IMarketDispatcherTrait, IERC20Dispatcher,
+        IERC20DispatcherTrait, IDistributorDispatcher, IDistributorDispatcherTrait,
+        IStatisticsDispatcher, IStatisticsDispatcherTrait
+    };
     use expectium::sort::{_sort_orders_descending, _sort_orders_ascending};
     use array::{ArrayTrait, SpanTrait};
     use zeroable::Zeroable;
@@ -66,16 +70,23 @@ mod Orderbook {
     }
 
     #[constructor]
-    fn constructor(ref self: ContractState, market: ContractAddress, operator: ContractAddress, quote_token: ContractAddress, distributor: ContractAddress) {
+    fn constructor(
+        ref self: ContractState,
+        market: ContractAddress,
+        operator: ContractAddress,
+        quote_token: ContractAddress,
+        distributor: ContractAddress
+    ) {
         self.operator.write(operator);
         self.market.write(market);
         self.quote_token.write(quote_token);
         self.distributor.write(distributor);
 
-        IERC20Dispatcher { contract_address: quote_token }.approve(distributor, integer::BoundedInt::max());
+        IERC20Dispatcher { contract_address: quote_token }
+            .approve(distributor, integer::BoundedInt::max());
     }
 
-    #[external(v0)]
+    #[abi(embed_v0)]
     impl Orderbook of IOrderbook<ContractState> {
         fn get_order(self: @ContractState, asset: Asset, side: u8, order_id: u32) -> felt252 {
             assert(side < 2_u8, 'side wrong');
@@ -111,17 +122,17 @@ mod Orderbook {
             let mut found_order: felt252 = 0;
 
             found_order = _find_order(self, Asset::Happens(()), 0_u8, order_id);
-            if(found_order != 0) {
+            if (found_order != 0) {
                 return (Asset::Happens(()), 0_u8, found_order);
             }
 
             found_order = _find_order(self, Asset::Happens(()), 1_u8, order_id);
-            if(found_order != 0) {
+            if (found_order != 0) {
                 return (Asset::Happens(()), 1_u8, found_order);
             }
 
             found_order = _find_order(self, Asset::Not(()), 0_u8, order_id);
-            if(found_order != 0) {
+            if (found_order != 0) {
                 return (Asset::Not(()), 0_u8, found_order);
             }
 
@@ -135,7 +146,9 @@ mod Orderbook {
 
         // quote_amount: usdc miktarı
         // price : fiyat
-        fn insert_buy_order(ref self: ContractState, asset: Asset, quote_amount: u256, price: u16) -> u32 {
+        fn insert_buy_order(
+            ref self: ContractState, asset: Asset, quote_amount: u256, price: u16
+        ) -> u32 {
             assert(!_is_emergency(@self), 'in emergency');
             // 1 $ = 10000
 
@@ -144,14 +157,16 @@ mod Orderbook {
 
             assert(price > 0_u16, 'price zero');
             assert(price <= 10000_u16, 'price too high');
-            
+
             assert(quote_amount.high == 0, 'quote too high');
 
             _receive_quote_token(ref self, caller, quote_amount);
 
-            let quote_left = _match_incoming_buy_order(ref self, caller, asset, quote_amount, price);
+            let quote_left = _match_incoming_buy_order(
+                ref self, caller, asset, quote_amount, price
+            );
 
-            if(quote_left == 0) {
+            if (quote_left == 0) {
                 return 0_u32;
             }
             let order_id = self.order_count.read() + 1;
@@ -160,13 +175,18 @@ mod Orderbook {
             let order_amount = quote_left / price.into();
 
             let mut order: Order = Order {
-                order_id: order_id, date: time, amount: order_amount.low, price: price, status: OrderStatus::Initialized(()) // Eğer amount değiştiyse partially filled yap.
+                order_id: order_id,
+                date: time,
+                amount: order_amount.low,
+                price: price,
+                status: OrderStatus::Initialized(
+                    ()
+                ) // Eğer amount değiştiyse partially filled yap.
             };
 
             let order_packed = pack_order(order);
             self.market_makers.write(order_id, caller);
             _add_user_order_ids(ref self, caller, order_id);
-            
 
             match asset {
                 Asset::Happens(()) => {
@@ -185,22 +205,36 @@ mod Orderbook {
                 }
             };
 
-            self.emit(Event::OrderInserted(
-                OrderInserted { maker: caller, asset: asset, side:0_u8, amount: order_amount, price: price, id: order_id}
-            ));
+            self
+                .emit(
+                    Event::OrderInserted(
+                        OrderInserted {
+                            maker: caller,
+                            asset: asset,
+                            side: 0_u8,
+                            amount: order_amount,
+                            price: price,
+                            id: order_id
+                        }
+                    )
+                );
 
             return order_id;
         }
 
 
         // Market order için price 1 gönderilebilir.
-        fn insert_sell_order(ref self: ContractState, asset: Asset, amount: u256, price: u16) -> u32 {
+        fn insert_sell_order(
+            ref self: ContractState, asset: Asset, amount: u256, price: u16
+        ) -> u32 {
             assert(!_is_emergency(@self), 'in emergency');
 
             let caller = get_caller_address();
             let time = get_block_timestamp();
 
-            assert(price > 0_u16, 'price zero');    // Fiyat sadece 0 ile 10000 arasında olabilir. 10000 = 1$
+            assert(
+                price > 0_u16, 'price zero'
+            ); // Fiyat sadece 0 ile 10000 arasında olabilir. 10000 = 1$
             assert(price <= 10000_u16, 'price too high');
 
             assert(amount.high == 0, 'amount too high'); // sadece u128 supportu var
@@ -210,19 +244,27 @@ mod Orderbook {
             _receive_assets(ref self, asset, caller, amount);
 
             // loop ile eşleşecek order var mı bakalım.
-            let amount_left = _match_incoming_sell_order(ref self, caller, asset, amount_low, price);
+            let amount_left = _match_incoming_sell_order(
+                ref self, caller, asset, amount_low, price
+            );
 
-            if(amount_left == 0) {
+            if (amount_left == 0) {
                 return 0_u32;
             }
 
-            let order_id = self.order_count.read() + 1; // 0. order id boş bırakılıyor. 0 döner ise order tamamen eşleşti demek.
+            let order_id = self.order_count.read()
+                + 1; // 0. order id boş bırakılıyor. 0 döner ise order tamamen eşleşti demek.
             self.order_count.write(order_id);
 
             let mut order: Order = Order {
-                order_id: order_id, date: time, amount: amount_left, price: price, status: OrderStatus::Initialized(()) // Eğer amount değiştiyse partially filled yap.
+                order_id: order_id,
+                date: time,
+                amount: amount_left,
+                price: price,
+                status: OrderStatus::Initialized(
+                    ()
+                ) // Eğer amount değiştiyse partially filled yap.
             };
-
 
             let order_packed = pack_order(order);
             self.market_makers.write(order_id, caller); // market maker olarak ekleyelim.
@@ -245,14 +287,24 @@ mod Orderbook {
                 }
             };
 
-            self.emit(Event::OrderInserted(
-                OrderInserted { maker: caller, asset: asset, side:1_u8, amount: u256 { high: 0, low: amount_left }, price: price, id: order_id}
-            ));
+            self
+                .emit(
+                    Event::OrderInserted(
+                        OrderInserted {
+                            maker: caller,
+                            asset: asset,
+                            side: 1_u8,
+                            amount: u256 { high: 0, low: amount_left },
+                            price: price,
+                            id: order_id
+                        }
+                    )
+                );
 
             return order_id;
         }
 
-         fn cancel_buy_order(ref self: ContractState, asset: Asset, order_id: u32) {
+        fn cancel_buy_order(ref self: ContractState, asset: Asset, order_id: u32) {
             assert(!_is_emergency(@self), 'in emergency');
 
             // TODO Kontrol
@@ -265,12 +317,10 @@ mod Orderbook {
 
             _remove_user_order_ids(ref self, order_owner, order_id);
 
-            self.emit(Event::Cancelled(
-                Cancelled { id: order_id, canceller: caller }
-            ));
-         }
+            self.emit(Event::Cancelled(Cancelled { id: order_id, canceller: caller }));
+        }
 
-         fn cancel_sell_order(ref self: ContractState, asset: Asset, order_id: u32) {
+        fn cancel_sell_order(ref self: ContractState, asset: Asset, order_id: u32) {
             assert(!_is_emergency(@self), 'in emergency');
             // TODO Kontrol
             let caller = get_caller_address();
@@ -283,28 +333,27 @@ mod Orderbook {
             _cancel_sell_order(ref self, order_owner, asset, order_id);
             _remove_user_order_ids(ref self, order_owner, order_id);
 
-            self.emit(Event::Cancelled(
-                Cancelled { id: order_id, canceller: caller }
-            ));
-         }
+            self.emit(Event::Cancelled(Cancelled { id: order_id, canceller: caller }));
+        }
 
-         fn emergency_toggle(ref self: ContractState) {
+        fn emergency_toggle(ref self: ContractState) {
             let caller = get_caller_address();
             assert(caller == self.operator.read(), 'only operator');
 
             self.is_emergency.write(!self.is_emergency.read())
-         }
+        }
 
-         fn refresh_distributor_approval(ref self: ContractState) {
+        fn refresh_distributor_approval(ref self: ContractState) {
             let caller = get_caller_address();
             assert(caller == self.operator.read(), 'only operator');
 
             let distributor = self.distributor.read();
 
-            IERC20Dispatcher { contract_address: self.quote_token.read() }.approve(distributor, integer::BoundedInt::max());
-         }
+            IERC20Dispatcher { contract_address: self.quote_token.read() }
+                .approve(distributor, integer::BoundedInt::max());
+        }
 
-         fn set_fees(ref self: ContractState, fees: PlatformFees) {
+        fn set_fees(ref self: ContractState, fees: PlatformFees) {
             let caller = get_caller_address();
             assert(caller == self.operator.read(), 'only operator');
 
@@ -312,15 +361,14 @@ mod Orderbook {
             assert(fees.maker <= 1000_u32, 'maker too much'); // Max fee %10
 
             self.fees.write(fees);
-         }
+        }
 
-         fn upgrade_contract(ref self: ContractState, new_class: ClassHash) {
+        fn upgrade_contract(ref self: ContractState, new_class: ClassHash) {
             let caller = get_caller_address();
             assert(caller == self.operator.read(), 'only operator');
 
             replace_class_syscall(new_class);
-         }
-
+        }
     }
 
     fn _add_user_order_ids(ref self: ContractState, user: ContractAddress, new_order_id: u32) {
@@ -335,9 +383,7 @@ mod Orderbook {
                     // v orderid u32
                     new_order_ids_array.append(v);
                 },
-                Option::None(()) => {
-                    break;
-                }
+                Option::None(()) => { break; }
             };
         };
 
@@ -352,29 +398,31 @@ mod Orderbook {
         loop {
             match current_order_ids.pop_front() {
                 Option::Some(v) => {
-                    if(v == order_id) {
+                    if (v == order_id) {
                         continue;
                     };
                     new_order_ids_array.append(v);
                 },
-                Option::None(()) => {
-                    break;
-                }
+                Option::None(()) => { break; }
             };
         };
 
         self.user_orders.write(user, new_order_ids_array);
     }
 
-    fn _match_incoming_sell_order(ref self: ContractState, taker: ContractAddress, asset: Asset, amount: u128, price: u16) -> u128 {
+    fn _match_incoming_sell_order(
+        ref self: ContractState, taker: ContractAddress, asset: Asset, amount: u128, price: u16
+    ) -> u128 {
         // TODO: Kontrol edilmeli.
         // Mevcut buy emirleriyle eşleştirelim.
         match asset {
             Asset::Happens(()) => {
                 let mut amount_left = amount;
-                let mut current_orders: Array<felt252> = self.happens.read(0_u8); // mevcut happens alış emirleri.
+                let mut current_orders: Array<felt252> = self
+                    .happens
+                    .read(0_u8); // mevcut happens alış emirleri.
 
-                if(current_orders.len() == 0) { // order yoksa direk emri girelim.
+                if (current_orders.len() == 0) { // order yoksa direk emri girelim.
                     return amount_left;
                 }
 
@@ -385,80 +433,128 @@ mod Orderbook {
                         Option::Some(v) => {
                             let mut order: Order = unpack_order(v);
 
-                            if(amount_left == 0 || order.price < price) { // Satış geldiği için order fiyatı bu fiyattan yüksek veya eşitlerle eşleşmeli.
+                            if (amount_left == 0
+                                || order
+                                    .price < price) { // Satış geldiği için order fiyatı bu fiyattan yüksek veya eşitlerle eşleşmeli.
                                 // bundan sonraki orderlar eşleşemez.
                                 // sadece listeye geri ekleyip devam edelim.
                                 orders_modified.append(v); // direk packli hali gönderelim.
                                 continue;
                             };
-                            let order_owner: ContractAddress = self.market_makers.read(order.order_id);
+                            let order_owner: ContractAddress = self
+                                .market_makers
+                                .read(order.order_id);
 
-                            if(order.amount < amount_left) {
+                            if (order.amount < amount_left) {
                                 let spent_amount = order.amount;
                                 amount_left -= spent_amount;
 
                                 order.status = OrderStatus::Filled(());
                                 order.amount = 0;
 
-                                let (net_amount, maker_fee) = _apply_fee(@self, FeeType::Maker(()), u256 { high: 0, low: spent_amount }); // Gönderilecek net miktar ve fee hesaplayalım.
-                                _transfer_assets(ref self, Asset::Happens(()), order_owner, net_amount); // Net miktarı emir sahibine gönderelim (maker)
-                                _transfer_assets(ref self, Asset::Happens(()), self.operator.read(), maker_fee); // Fee miktarını operatore gönderelim
+                                let (net_amount, maker_fee) = _apply_fee(
+                                    @self, FeeType::Maker(()), u256 { high: 0, low: spent_amount }
+                                ); // Gönderilecek net miktar ve fee hesaplayalım.
+                                _transfer_assets(
+                                    ref self, Asset::Happens(()), order_owner, net_amount
+                                ); // Net miktarı emir sahibine gönderelim (maker)
+                                _transfer_assets(
+                                    ref self, Asset::Happens(()), self.operator.read(), maker_fee
+                                ); // Fee miktarını operatore gönderelim
 
-                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * order.price.into(); // quote_amount hesaplayalım (price * amount)
-                                let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), quote_amount / 10000); // emir giren satıcı olduğu için taker fee hesaplayalım
-                                _transfer_quote_token(ref self, taker, net_amount); // net miktarı callera gönderelim.
+                                let quote_amount: u256 = u256 { high: 0, low: spent_amount }
+                                    * order
+                                        .price
+                                        .into(); // quote_amount hesaplayalım (price * amount)
+                                let (net_amount, taker_fee) = _apply_fee(
+                                    @self, FeeType::Taker(()), quote_amount / 10000
+                                ); // emir giren satıcı olduğu için taker fee hesaplayalım
+                                _transfer_quote_token(
+                                    ref self, taker, net_amount
+                                ); // net miktarı callera gönderelim.
                                 //IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), taker_fee); // kalan taker fee yi distribution registerlayalım.
                                 _distribute_fees(@self, taker_fee);
 
-                                self.emit(Event::Matched(
-                                    Matched { maker_order_id: order.order_id, maker: order_owner, 
-                                            asset: Asset::Happens(()), matched_amount:  u256 { high: 0, low : spent_amount},
-                                            price: order.price, taker: taker, taker_side: 1_u8}
-                                ));
-
-
+                                self
+                                    .emit(
+                                        Event::Matched(
+                                            Matched {
+                                                maker_order_id: order.order_id,
+                                                maker: order_owner,
+                                                asset: Asset::Happens(()),
+                                                matched_amount: u256 { high: 0, low: spent_amount },
+                                                price: order.price,
+                                                taker: taker,
+                                                taker_side: 1_u8
+                                            }
+                                        )
+                                    );
 
                                 // Orderı geri eklemeye gerek yok zaten tamamlandı.
                                 continue;
                             };
 
-                            if(order.amount >= amount_left) {
+                            if (order.amount >= amount_left) {
                                 let spent_amount = amount_left;
                                 amount_left = 0;
 
-                                if(order.amount == spent_amount) {
+                                if (order.amount == spent_amount) {
                                     order.status = OrderStatus::Filled(());
                                     order.amount = 0;
-                                    // amount 0 olunca eklemeye gerek yok.
+                                // amount 0 olunca eklemeye gerek yok.
                                 } else {
                                     order.status = OrderStatus::PartiallyFilled(());
                                     order.amount -= spent_amount;
-                                    orders_modified.append(pack_order(order)); // güncellenen orderi ekleyelim.
+                                    orders_modified
+                                        .append(
+                                            pack_order(order)
+                                        ); // güncellenen orderi ekleyelim.
                                 };
 
-                                let (net_amount, maker_fee) = _apply_fee(@self, FeeType::Maker(()), u256 { high: 0, low: spent_amount }); // Satılacak amounttan fee hesaplayalım
-                                _transfer_assets(ref self, Asset::Happens(()), order_owner, net_amount); // net miktarı emir sahibine gönderelim
-                                _transfer_assets(ref self, Asset::Happens(()), self.operator.read(), maker_fee); // assetleri operatore gönderelim fee
+                                let (net_amount, maker_fee) = _apply_fee(
+                                    @self, FeeType::Maker(()), u256 { high: 0, low: spent_amount }
+                                ); // Satılacak amounttan fee hesaplayalım
+                                _transfer_assets(
+                                    ref self, Asset::Happens(()), order_owner, net_amount
+                                ); // net miktarı emir sahibine gönderelim
+                                _transfer_assets(
+                                    ref self, Asset::Happens(()), self.operator.read(), maker_fee
+                                ); // assetleri operatore gönderelim fee
 
                                 // Yeni order girene(Taker), quote gönderelim.
-                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * order.price.into(); // quote hesaplayalım
-                                let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), quote_amount / 10000); // fee hesaplayalım taker
-                                _transfer_quote_token(ref self, taker, net_amount); // net miktarı emir girene gönderelim.
+                                let quote_amount: u256 = u256 { high: 0, low: spent_amount }
+                                    * order.price.into(); // quote hesaplayalım
+                                let (net_amount, taker_fee) = _apply_fee(
+                                    @self, FeeType::Taker(()), quote_amount / 10000
+                                ); // fee hesaplayalım taker
+                                _transfer_quote_token(
+                                    ref self, taker, net_amount
+                                ); // net miktarı emir girene gönderelim.
                                 // IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), taker_fee); // register fee distro
                                 _distribute_fees(@self, taker_fee);
 
-                                self.emit(Event::Matched(
-                                    Matched { maker_order_id: order.order_id, maker: order_owner, 
-                                            asset: Asset::Happens(()), matched_amount:  u256 { high: 0, low : spent_amount},
-                                            price: order.price, taker: taker, taker_side: 1_u8}
-                                ));
-
+                                self
+                                    .emit(
+                                        Event::Matched(
+                                            Matched {
+                                                maker_order_id: order.order_id,
+                                                maker: order_owner,
+                                                asset: Asset::Happens(()),
+                                                matched_amount: u256 { high: 0, low: spent_amount },
+                                                price: order.price,
+                                                taker: taker,
+                                                taker_side: 1_u8
+                                            }
+                                        )
+                                    );
                             };
                         },
                         Option::None(()) => {
                             // burada order listesini güncelleyebiliriz.
                             let last_orders = orders_modified.clone();
-                            let sorted_orders = _sort_orders(false, last_orders); // buy emirleri sıralanacağı için fiyat yukardan aşağı olmalı.
+                            let sorted_orders = _sort_orders(
+                                false, last_orders
+                            ); // buy emirleri sıralanacağı için fiyat yukardan aşağı olmalı.
                             self.happens.write(0_u8, sorted_orders); // order listesi güncellendi.
                             break;
                         }
@@ -469,9 +565,11 @@ mod Orderbook {
             },
             Asset::Not(()) => { // TODO
                 let mut amount_left = amount;
-                let mut current_orders: Array<felt252> = self.not.read(0_u8); // mevcut not alış emirleri.
+                let mut current_orders: Array<felt252> = self
+                    .not
+                    .read(0_u8); // mevcut not alış emirleri.
 
-                if(current_orders.len() == 0) { // order yoksa direk emri girelim.
+                if (current_orders.len() == 0) { // order yoksa direk emri girelim.
                     return amount_left;
                 }
 
@@ -482,79 +580,119 @@ mod Orderbook {
                         Option::Some(v) => {
                             let mut order: Order = unpack_order(v);
 
-                            if(amount_left == 0 || order.price < price) { // Satış geldiği için order fiyatı bu fiyattan yüksek veya eşitlerle eşleşmeli.
+                            if (amount_left == 0
+                                || order
+                                    .price < price) { // Satış geldiği için order fiyatı bu fiyattan yüksek veya eşitlerle eşleşmeli.
                                 // bundan sonraki orderlar eşleşemez.
                                 // sadece listeye geri ekleyip devam edelim.
                                 orders_modified.append(v); // direk packli hali gönderelim.
                                 continue;
                             };
-                            let order_owner: ContractAddress = self.market_makers.read(order.order_id);
+                            let order_owner: ContractAddress = self
+                                .market_makers
+                                .read(order.order_id);
 
-                            if(order.amount < amount_left) {
+                            if (order.amount < amount_left) {
                                 let spent_amount = order.amount;
                                 amount_left -= spent_amount;
 
                                 order.status = OrderStatus::Filled(());
                                 order.amount = 0;
 
-                                let (net_amount, maker_fee) = _apply_fee(@self, FeeType::Maker(()), u256 { high: 0, low: spent_amount });
+                                let (net_amount, maker_fee) = _apply_fee(
+                                    @self, FeeType::Maker(()), u256 { high: 0, low: spent_amount }
+                                );
                                 _transfer_assets(ref self, Asset::Not(()), order_owner, net_amount);
-                                _transfer_assets(ref self, Asset::Not(()), self.operator.read(), maker_fee); // TODO: Daha sonrasında assetide nft holderlarına dağıtacağız.
+                                _transfer_assets(
+                                    ref self, Asset::Not(()), self.operator.read(), maker_fee
+                                ); // TODO: Daha sonrasında assetide nft holderlarına dağıtacağız.
 
                                 // Yeni order girene(Taker), quote gönderelim.
-                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * order.price.into(); // TODO: FEE
-                                let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), quote_amount / 10000);
+                                let quote_amount: u256 = u256 { high: 0, low: spent_amount }
+                                    * order.price.into(); // TODO: FEE
+                                let (net_amount, taker_fee) = _apply_fee(
+                                    @self, FeeType::Taker(()), quote_amount / 10000
+                                );
                                 _transfer_quote_token(ref self, taker, net_amount);
                                 //IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), taker_fee); // register fee distro
                                 _distribute_fees(@self, taker_fee);
 
-                                self.emit(Event::Matched(
-                                    Matched { maker_order_id: order.order_id, maker: order_owner, 
-                                            asset: Asset::Not(()), matched_amount:  u256 { high: 0, low : spent_amount},
-                                            price: order.price, taker: taker, taker_side: 1_u8}
-                                ));
+                                self
+                                    .emit(
+                                        Event::Matched(
+                                            Matched {
+                                                maker_order_id: order.order_id,
+                                                maker: order_owner,
+                                                asset: Asset::Not(()),
+                                                matched_amount: u256 { high: 0, low: spent_amount },
+                                                price: order.price,
+                                                taker: taker,
+                                                taker_side: 1_u8
+                                            }
+                                        )
+                                    );
 
                                 // Orderı geri eklemeye gerek yok zaten tamamlandı.
                                 continue;
                             };
 
-                            if(order.amount >= amount_left) {
+                            if (order.amount >= amount_left) {
                                 let spent_amount = amount_left;
                                 amount_left = 0;
 
-                                if(order.amount == spent_amount) {
+                                if (order.amount == spent_amount) {
                                     order.status = OrderStatus::Filled(());
                                     order.amount = 0;
-                                    // amount 0 olunca eklemeye gerek yok.
+                                // amount 0 olunca eklemeye gerek yok.
                                 } else {
                                     order.status = OrderStatus::PartiallyFilled(());
                                     order.amount -= spent_amount;
-                                    orders_modified.append(pack_order(order)); // güncellenen orderi ekleyelim.
+                                    orders_modified
+                                        .append(
+                                            pack_order(order)
+                                        ); // güncellenen orderi ekleyelim.
                                 };
 
-                                let (net_amount, maker_fee) = _apply_fee(@self, FeeType::Maker(()), u256 { high: 0, low: spent_amount });
+                                let (net_amount, maker_fee) = _apply_fee(
+                                    @self, FeeType::Maker(()), u256 { high: 0, low: spent_amount }
+                                );
                                 _transfer_assets(ref self, Asset::Not(()), order_owner, net_amount);
-                                _transfer_assets(ref self, Asset::Not(()), self.operator.read(), maker_fee); // TODO: Daha sonrasında assetide nft holderlarına dağıtacağız.
+                                _transfer_assets(
+                                    ref self, Asset::Not(()), self.operator.read(), maker_fee
+                                ); // TODO: Daha sonrasında assetide nft holderlarına dağıtacağız.
 
                                 // Yeni order girene(Taker), quote gönderelim.
-                                let quote_amount: u256 = u256 { high: 0, low: spent_amount } * order.price.into(); // TODO: FEE
-                                let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), quote_amount / 10000);
+                                let quote_amount: u256 = u256 { high: 0, low: spent_amount }
+                                    * order.price.into(); // TODO: FEE
+                                let (net_amount, taker_fee) = _apply_fee(
+                                    @self, FeeType::Taker(()), quote_amount / 10000
+                                );
                                 _transfer_quote_token(ref self, taker, net_amount);
                                 // IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), taker_fee); // register fee distro
                                 _distribute_fees(@self, taker_fee);
 
-                                self.emit(Event::Matched(
-                                    Matched { maker_order_id: order.order_id, maker: order_owner, 
-                                            asset: Asset::Not(()), matched_amount:  u256 { high: 0, low : spent_amount},
-                                            price: order.price, taker: taker, taker_side: 1_u8}
-                                ));
-
+                                self
+                                    .emit(
+                                        Event::Matched(
+                                            Matched {
+                                                maker_order_id: order.order_id,
+                                                maker: order_owner,
+                                                asset: Asset::Not(()),
+                                                matched_amount: u256 { high: 0, low: spent_amount },
+                                                price: order.price,
+                                                taker: taker,
+                                                taker_side: 1_u8
+                                            }
+                                        )
+                                    );
                             };
                         },
                         Option::None(()) => {
                             // burada order listesini güncelleyebiliriz.
                             let last_orders = orders_modified.clone();
-                            let sorted_orders = _sort_orders(false, last_orders); // buy emirleri sıralanacağı için fiyat yukardan aşağı olmalı.
+                            let sorted_orders = _sort_orders(
+                                false, last_orders
+                            ); // buy emirleri sıralanacağı için fiyat yukardan aşağı olmalı.
                             self.not.write(0_u8, sorted_orders); // order listesi güncellendi.
                             break;
                         }
@@ -568,13 +706,22 @@ mod Orderbook {
 
     // returns harcanmayan quote_amount * 10000
     // returnlenen değer 100000 ile çarpılmış. price cinsinden değer.
-    fn _match_incoming_buy_order(ref self: ContractState, taker: ContractAddress, asset: Asset, quote_amount: u256, price: u16) -> u256 {
+    fn _match_incoming_buy_order(
+        ref self: ContractState,
+        taker: ContractAddress,
+        asset: Asset,
+        quote_amount: u256,
+        price: u16
+    ) -> u256 {
         match asset {
             Asset::Happens(()) => {
-                let mut quote_left = quote_amount * 10000; // 10000 ile çarpınca 1 usd price bp eşit oluyor. 10000 price = 1 usdc
-                let mut current_orders: Array<felt252> = self.happens.read(1_u8); // mevcut satış emirleri
+                let mut quote_left = quote_amount
+                    * 10000; // 10000 ile çarpınca 1 usd price bp eşit oluyor. 10000 price = 1 usdc
+                let mut current_orders: Array<felt252> = self
+                    .happens
+                    .read(1_u8); // mevcut satış emirleri
 
-                if(current_orders.len() == 0) {
+                if (current_orders.len() == 0) {
                     return quote_left;
                 }
 
@@ -585,19 +732,24 @@ mod Orderbook {
                         Option::Some(v) => {
                             let mut order: Order = unpack_order(v);
 
-                            if(quote_left == 0 || order.price > price) {
+                            if (quote_left == 0 || order.price > price) {
                                 orders_modified.append(v);
                                 continue;
                             }
 
-                            let order_owner: ContractAddress = self.market_makers.read(order.order_id);
+                            let order_owner: ContractAddress = self
+                                .market_makers
+                                .read(order.order_id);
 
-                            let max_amount: u256 = quote_left / order.price.into(); // hesaplama doğru quoteleft zaten çarpılmış.
+                            let max_amount: u256 = quote_left
+                                / order
+                                    .price
+                                    .into(); // hesaplama doğru quoteleft zaten çarpılmış.
                             assert(max_amount.high == 0, 'amount too high');
 
                             let maximum_amount_can_be_bought: u128 = max_amount.low;
 
-                            if(order.amount < maximum_amount_can_be_bought) {
+                            if (order.amount < maximum_amount_can_be_bought) {
                                 // bu order yeterli değil devam edecek.
                                 let spent_amount = order.amount;
                                 let quote_spent = spent_amount * order.price.into();
@@ -607,33 +759,50 @@ mod Orderbook {
                                 order.status = OrderStatus::Filled(());
                                 order.amount = 0;
 
-                                let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), u256 { high: 0, low: spent_amount });
-                                
+                                let (net_amount, taker_fee) = _apply_fee(
+                                    @self, FeeType::Taker(()), u256 { high: 0, low: spent_amount }
+                                );
+
                                 _transfer_assets(ref self, Asset::Happens(()), taker, net_amount);
-                                _transfer_assets(ref self, Asset::Happens(()), self.operator.read(), taker_fee);
+                                _transfer_assets(
+                                    ref self, Asset::Happens(()), self.operator.read(), taker_fee
+                                );
 
-                                let (net_amount, maker_fee) = _apply_fee(@self, FeeType::Maker(()), quote_spent.into() / 10000);
+                                let (net_amount, maker_fee) = _apply_fee(
+                                    @self, FeeType::Maker(()), quote_spent.into() / 10000
+                                );
 
-                                _transfer_quote_token(ref self, order_owner, net_amount); // gönderilecek miktarı tekrar usdc çevirelim.
+                                _transfer_quote_token(
+                                    ref self, order_owner, net_amount
+                                ); // gönderilecek miktarı tekrar usdc çevirelim.
                                 _distribute_fees(@self, maker_fee);
 
-                                self.emit(Event::Matched(
-                                    Matched { maker_order_id: order.order_id, maker: order_owner, 
-                                            asset: Asset::Happens(()), matched_amount:  u256 { high: 0, low : spent_amount},
-                                            price: order.price, taker: taker, taker_side: 0_u8}
-                                ));
-
+                                self
+                                    .emit(
+                                        Event::Matched(
+                                            Matched {
+                                                maker_order_id: order.order_id,
+                                                maker: order_owner,
+                                                asset: Asset::Happens(()),
+                                                matched_amount: u256 { high: 0, low: spent_amount },
+                                                price: order.price,
+                                                taker: taker,
+                                                taker_side: 0_u8
+                                            }
+                                        )
+                                    );
 
                                 continue;
                             };
 
-                            if(order.amount >= maximum_amount_can_be_bought) {
+                            if (order.amount >= maximum_amount_can_be_bought) {
                                 let spent_amount = maximum_amount_can_be_bought;
-                                let quote_spent: u256 = u256 { high: 0, low : spent_amount } * order.price.into();
+                                let quote_spent: u256 = u256 { high: 0, low: spent_amount }
+                                    * order.price.into();
 
                                 quote_left = 0;
 
-                                if(order.amount == spent_amount) {
+                                if (order.amount == spent_amount) {
                                     order.status = OrderStatus::Filled(());
                                     order.amount = 0;
                                 } else {
@@ -642,22 +811,36 @@ mod Orderbook {
                                     orders_modified.append(pack_order(order));
                                 };
 
-                                let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), u256 { high: 0, low: spent_amount });
+                                let (net_amount, taker_fee) = _apply_fee(
+                                    @self, FeeType::Taker(()), u256 { high: 0, low: spent_amount }
+                                );
 
                                 _transfer_assets(ref self, Asset::Happens(()), taker, net_amount);
-                                _transfer_assets(ref self, Asset::Happens(()), self.operator.read(), taker_fee);
+                                _transfer_assets(
+                                    ref self, Asset::Happens(()), self.operator.read(), taker_fee
+                                );
 
-                                let (net_amount, maker_fee) = _apply_fee(@self, FeeType::Maker(()), quote_spent / 10000);
+                                let (net_amount, maker_fee) = _apply_fee(
+                                    @self, FeeType::Maker(()), quote_spent / 10000
+                                );
 
                                 _transfer_quote_token(ref self, order_owner, net_amount);
                                 _distribute_fees(@self, maker_fee);
 
-                                self.emit(Event::Matched(
-                                    Matched { maker_order_id: order.order_id, maker: order_owner, 
-                                            asset: Asset::Happens(()), matched_amount:  u256 { high: 0, low : spent_amount},
-                                            price: order.price, taker: taker, taker_side: 0_u8}
-                                ));
-
+                                self
+                                    .emit(
+                                        Event::Matched(
+                                            Matched {
+                                                maker_order_id: order.order_id,
+                                                maker: order_owner,
+                                                asset: Asset::Happens(()),
+                                                matched_amount: u256 { high: 0, low: spent_amount },
+                                                price: order.price,
+                                                taker: taker,
+                                                taker_side: 0_u8
+                                            }
+                                        )
+                                    );
                             };
                         },
                         Option::None(()) => {
@@ -672,9 +855,11 @@ mod Orderbook {
             },
             Asset::Not(()) => {
                 let mut quote_left = quote_amount * 10000;
-                let mut current_orders: Array<felt252> = self.not.read(1_u8); // mevcut satış emirleri
+                let mut current_orders: Array<felt252> = self
+                    .not
+                    .read(1_u8); // mevcut satış emirleri
 
-                if(current_orders.len() == 0) {
+                if (current_orders.len() == 0) {
                     return quote_left;
                 }
 
@@ -685,19 +870,21 @@ mod Orderbook {
                         Option::Some(v) => {
                             let mut order: Order = unpack_order(v);
 
-                            if(quote_left == 0 || order.price > price) {
+                            if (quote_left == 0 || order.price > price) {
                                 orders_modified.append(v);
                                 continue;
                             }
 
-                            let order_owner: ContractAddress = self.market_makers.read(order.order_id);
+                            let order_owner: ContractAddress = self
+                                .market_makers
+                                .read(order.order_id);
 
                             let max_amount: u256 = quote_left / order.price.into();
                             assert(max_amount.high == 0, 'amount too high');
-                            
+
                             let maximum_amount_can_be_bought: u128 = max_amount.low;
 
-                            if(order.amount < maximum_amount_can_be_bought) {
+                            if (order.amount < maximum_amount_can_be_bought) {
                                 // bu order yeterli değil devam edecek.
                                 let spent_amount = order.amount;
                                 let quote_spent = spent_amount * order.price.into();
@@ -707,32 +894,48 @@ mod Orderbook {
                                 order.status = OrderStatus::Filled(());
                                 order.amount = 0;
 
-                                let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), u256 { high: 0, low: spent_amount });
-                                
-                                _transfer_assets(ref self, Asset::Not(()), taker, net_amount);
-                                _transfer_assets(ref self, Asset::Not(()), self.operator.read(), taker_fee);
+                                let (net_amount, taker_fee) = _apply_fee(
+                                    @self, FeeType::Taker(()), u256 { high: 0, low: spent_amount }
+                                );
 
-                                let (net_amount, maker_fee) = _apply_fee(@self, FeeType::Maker(()), quote_spent.into() / 10000);
+                                _transfer_assets(ref self, Asset::Not(()), taker, net_amount);
+                                _transfer_assets(
+                                    ref self, Asset::Not(()), self.operator.read(), taker_fee
+                                );
+
+                                let (net_amount, maker_fee) = _apply_fee(
+                                    @self, FeeType::Maker(()), quote_spent.into() / 10000
+                                );
 
                                 _transfer_quote_token(ref self, order_owner, net_amount);
                                 _distribute_fees(@self, maker_fee);
 
-                                self.emit(Event::Matched(
-                                    Matched { maker_order_id: order.order_id, maker: order_owner, 
-                                            asset: Asset::Not(()), matched_amount:  u256 { high: 0, low : spent_amount},
-                                            price: order.price, taker: taker, taker_side: 0_u8}
-                                ));
+                                self
+                                    .emit(
+                                        Event::Matched(
+                                            Matched {
+                                                maker_order_id: order.order_id,
+                                                maker: order_owner,
+                                                asset: Asset::Not(()),
+                                                matched_amount: u256 { high: 0, low: spent_amount },
+                                                price: order.price,
+                                                taker: taker,
+                                                taker_side: 0_u8
+                                            }
+                                        )
+                                    );
 
                                 continue;
                             };
 
-                            if(order.amount >= maximum_amount_can_be_bought) {
+                            if (order.amount >= maximum_amount_can_be_bought) {
                                 let spent_amount = maximum_amount_can_be_bought;
-                                let quote_spent: u256 = u256 { high: 0, low : spent_amount } * order.price.into();
+                                let quote_spent: u256 = u256 { high: 0, low: spent_amount }
+                                    * order.price.into();
 
                                 quote_left = 0;
 
-                                if(order.amount == spent_amount) {
+                                if (order.amount == spent_amount) {
                                     order.status = OrderStatus::Filled(());
                                     order.amount = 0;
                                 } else {
@@ -741,22 +944,36 @@ mod Orderbook {
                                     orders_modified.append(pack_order(order));
                                 };
 
-                                let (net_amount, taker_fee) = _apply_fee(@self, FeeType::Taker(()), u256 { high: 0, low: spent_amount });
+                                let (net_amount, taker_fee) = _apply_fee(
+                                    @self, FeeType::Taker(()), u256 { high: 0, low: spent_amount }
+                                );
 
                                 _transfer_assets(ref self, Asset::Not(()), taker, net_amount);
-                                _transfer_assets(ref self, Asset::Not(()), self.operator.read(), taker_fee);
+                                _transfer_assets(
+                                    ref self, Asset::Not(()), self.operator.read(), taker_fee
+                                );
 
-                                let (net_amount, maker_fee) = _apply_fee(@self, FeeType::Maker(()), quote_spent / 10000);
+                                let (net_amount, maker_fee) = _apply_fee(
+                                    @self, FeeType::Maker(()), quote_spent / 10000
+                                );
 
                                 _transfer_quote_token(ref self, order_owner, net_amount);
                                 _distribute_fees(@self, maker_fee);
 
-                                self.emit(Event::Matched(
-                                    Matched { maker_order_id: order.order_id, maker: order_owner, 
-                                            asset: Asset::Not(()), matched_amount:  u256 { high: 0, low : spent_amount},
-                                            price: order.price, taker: taker, taker_side: 0_u8}
-                                ));
-
+                                self
+                                    .emit(
+                                        Event::Matched(
+                                            Matched {
+                                                maker_order_id: order.order_id,
+                                                maker: order_owner,
+                                                asset: Asset::Not(()),
+                                                matched_amount: u256 { high: 0, low: spent_amount },
+                                                price: order.price,
+                                                taker: taker,
+                                                taker_side: 0_u8
+                                            }
+                                        )
+                                    );
                             };
                         },
                         Option::None(()) => {
@@ -772,7 +989,9 @@ mod Orderbook {
         }
     }
 
-    fn _cancel_buy_order(ref self: ContractState, owner: ContractAddress, asset: Asset, order_id: u32) {
+    fn _cancel_buy_order(
+        ref self: ContractState, owner: ContractAddress, asset: Asset, order_id: u32
+    ) {
         // gönderilecek miktar price * amount
         match asset {
             Asset::Happens(()) => {
@@ -783,18 +1002,17 @@ mod Orderbook {
                         Option::Some(v) => {
                             let unpacked_order: Order = unpack_order(v);
 
-                            if(unpacked_order.order_id != order_id) {
+                            if (unpacked_order.order_id != order_id) {
                                 new_orders.append(v);
                                 continue;
                             }
 
-                            let transfer_amount: u256 = unpacked_order.price.into() * unpacked_order.amount.into();
+                            let transfer_amount: u256 = unpacked_order.price.into()
+                                * unpacked_order.amount.into();
 
                             _transfer_quote_token(ref self, owner, transfer_amount / 10000);
                         },
-                        Option::None(()) => {
-                            break;
-                        }
+                        Option::None(()) => { break; }
                     };
                 };
 
@@ -809,18 +1027,17 @@ mod Orderbook {
                         Option::Some(v) => {
                             let unpacked_order: Order = unpack_order(v);
 
-                            if(unpacked_order.order_id != order_id) {
+                            if (unpacked_order.order_id != order_id) {
                                 new_orders.append(v);
                                 continue;
                             }
 
-                            let transfer_amount: u256 = unpacked_order.price.into() * unpacked_order.amount.into();
+                            let transfer_amount: u256 = unpacked_order.price.into()
+                                * unpacked_order.amount.into();
 
                             _transfer_quote_token(ref self, owner, transfer_amount / 10000);
                         },
-                        Option::None(()) => {
-                            break;
-                        }
+                        Option::None(()) => { break; }
                     };
                 };
 
@@ -830,7 +1047,9 @@ mod Orderbook {
         };
     }
 
-    fn _cancel_sell_order(ref self: ContractState, owner: ContractAddress, asset: Asset, order_id: u32) {
+    fn _cancel_sell_order(
+        ref self: ContractState, owner: ContractAddress, asset: Asset, order_id: u32
+    ) {
         match asset {
             Asset::Happens(()) => {
                 let mut orders = self.happens.read(1_u8);
@@ -840,16 +1059,16 @@ mod Orderbook {
                         Option::Some(v) => {
                             let unpacked_order: Order = unpack_order(v);
 
-                            if(unpacked_order.order_id != order_id) {
+                            if (unpacked_order.order_id != order_id) {
                                 new_orders.append(v);
                                 continue;
                             };
 
-                            _transfer_assets(ref self, Asset::Happens(()), owner, unpacked_order.amount.into());
+                            _transfer_assets(
+                                ref self, Asset::Happens(()), owner, unpacked_order.amount.into()
+                            );
                         },
-                        Option::None(()) => {
-                            break;
-                        }
+                        Option::None(()) => { break; }
                     };
                 };
 
@@ -864,16 +1083,16 @@ mod Orderbook {
                         Option::Some(v) => {
                             let unpacked_order: Order = unpack_order(v);
 
-                            if(unpacked_order.order_id != order_id) {
+                            if (unpacked_order.order_id != order_id) {
                                 new_orders.append(v);
                                 continue;
                             };
 
-                            _transfer_assets(ref self, Asset::Not(()), owner, unpacked_order.amount.into());
+                            _transfer_assets(
+                                ref self, Asset::Not(()), owner, unpacked_order.amount.into()
+                            );
                         },
-                        Option::None(()) => {
-                            break;
-                        }
+                        Option::None(()) => { break; }
                     };
                 };
 
@@ -887,7 +1106,7 @@ mod Orderbook {
         match asset {
             Asset::Happens(()) => {
                 let mut orders = self.happens.read(side);
-                if(orders.len() == 0) {
+                if (orders.len() == 0) {
                     return 0;
                 }
                 let mut found_order: felt252 = 0;
@@ -895,21 +1114,19 @@ mod Orderbook {
                     match orders.pop_front() {
                         Option::Some(v) => {
                             let order = unpack_order(v);
-                            if(order.order_id == order_id) {
+                            if (order.order_id == order_id) {
                                 found_order = v;
                                 break;
                             };
                         },
-                        Option::None(()) => {
-                            break;
-                        }
+                        Option::None(()) => { break; }
                     };
                 };
                 return found_order;
             },
             Asset::Not(()) => {
                 let mut orders = self.not.read(side);
-                if(orders.len() == 0) {
+                if (orders.len() == 0) {
                     return 0;
                 }
                 let mut found_order: felt252 = 0;
@@ -917,14 +1134,12 @@ mod Orderbook {
                     match orders.pop_front() {
                         Option::Some(v) => {
                             let order = unpack_order(v);
-                            if(order.order_id == order_id) {
+                            if (order.order_id == order_id) {
                                 found_order = v;
                                 break;
                             };
                         },
-                        Option::None(()) => {
-                            break;
-                        }
+                        Option::None(()) => { break; }
                     };
                 };
                 return found_order;
@@ -933,7 +1148,7 @@ mod Orderbook {
     }
 
     fn _sort_orders(ascending: bool, orders: Array<felt252>) -> Array<felt252> {
-        if(ascending) {
+        if (ascending) {
             _sort_orders_ascending(orders)
         } else {
             _sort_orders_descending(orders)
@@ -941,8 +1156,9 @@ mod Orderbook {
     }
 
     fn _distribute_fees(self: @ContractState, amount: u256) {
-        if(amount > 0) {
-            IDistributorDispatcher { contract_address: self.distributor.read() }.new_distribution(self.quote_token.read(), amount);
+        if (amount > 0) {
+            IDistributorDispatcher { contract_address: self.distributor.read() }
+                .new_distribution(self.quote_token.read(), amount);
         }
     }
 
@@ -950,7 +1166,7 @@ mod Orderbook {
         let this_addr = get_contract_address();
         let quote = self.quote_token.read();
 
-        let balanceBefore = IERC20Dispatcher { contract_address: quote}.balanceOf(this_addr);
+        let balanceBefore = IERC20Dispatcher { contract_address: quote }.balanceOf(this_addr);
 
         IERC20Dispatcher { contract_address: quote }.transferFrom(from, this_addr, amount);
 
@@ -976,9 +1192,12 @@ mod Orderbook {
         let this_addr = get_contract_address();
         let market = self.market.read();
 
-        let balance_before = IMarketDispatcher { contract_address: market }.balance_of(this_addr, asset);
-        IMarketDispatcher { contract_address: market }.transfer_from(from, this_addr, asset, amount);
-        let balance_after = IMarketDispatcher { contract_address: market }.balance_of(this_addr, asset);
+        let balance_before = IMarketDispatcher { contract_address: market }
+            .balance_of(this_addr, asset);
+        IMarketDispatcher { contract_address: market }
+            .transfer_from(from, this_addr, asset, amount);
+        let balance_after = IMarketDispatcher { contract_address: market }
+            .balance_of(this_addr, asset);
 
         assert((balance_after - amount) >= balance_before, 'EXPO: transfer fail')
     }
